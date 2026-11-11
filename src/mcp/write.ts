@@ -171,7 +171,7 @@ export const reportSuspicion: Tool = (payload) => {
     const findings = toFindings({
       hits: [hit],
       segment: source,
-      segmentId: source.refId ?? `${bundle.issue.id}:${source.field}`,
+      segmentId: reportedSegmentId(bundle),
       language: bundle.language,
       now: bundle.now,
     });
@@ -217,6 +217,11 @@ function reportedSource(bundle: IssueBundle): SegmentSource {
     channel: bundle.issue.channel,
     createdAt: bundle.issue.createdAt,
   };
+}
+
+/** Segment porteur du signalement : celui stocké s'il existe, sinon la demande. */
+function reportedSegmentId(bundle: IssueBundle): string {
+  return bundle.segments[0]?.id ?? `${bundle.issue.id}:description`;
 }
 
 /** Coup de couche C4 : motif « signalé par un agent », résumé = ce qu'il décrit. */
