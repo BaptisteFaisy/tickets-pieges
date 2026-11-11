@@ -81,6 +81,31 @@ function VerdictHistory({ review, language }: { review: FindingReview; language:
   );
 }
 
+function RestoreButton({
+  findingId,
+  language,
+  onRestored,
+}: {
+  findingId: string;
+  language: Language;
+  onRestored: () => Promise<void>;
+}): JSX.Element {
+  const [message, setMessage] = useState<string | null>(null);
+
+  const restore = async (): Promise<void> => {
+    const result = await restoreFinding(findingId);
+    setMessage(result.ok ? t(language, 'ui.review.restored') : result.error);
+    if (result.ok) await onRestored();
+  };
+
+  return (
+    <Stack space="space.050">
+      <Button text={t(language, 'ui.review.restore')} appearance="subtle" onClick={() => void restore()} />
+      {message ? <Text>{message}</Text> : null}
+    </Stack>
+  );
+}
+
 function ReviewPane({
   findingId,
   language,
@@ -91,7 +116,6 @@ function ReviewPane({
   onChanged: () => void;
 }): JSX.Element {
   const [state, setState] = useState<AsyncState<FindingReview>>({ status: 'loading' });
-  const [restored, setRestored] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const result = await getFinding(findingId);
@@ -105,15 +129,6 @@ function ReviewPane({
   if (state.status === 'loading') return <Spinner />;
   if (state.status === 'error') return <Banner appearance="error">{state.message}</Banner>;
   const review = state.data;
-
-  const restore = async (): Promise<void> => {
-    const result = await restoreFinding(findingId);
-    setRestored(result.ok ? t(language, 'ui.review.restored') : result.error);
-    if (result.ok) {
-      await load();
-      onChanged();
-    }
-  };
 
   return (
     <Stack space="space.100">
@@ -129,9 +144,11 @@ function ReviewPane({
       <VerdictHistory review={review} language={language} />
       <VerdictButtons findingId={findingId} language={language} onDone={() => void load()} />
       {review.status === 'neutralized' && review.originalId ? (
-        <Button text={t(language, 'ui.review.restore')} appearance="subtle" onClick={() => void restore()} />
+        <RestoreButton findingId={findingId} language={language} onRestored={async () => {
+          await load();
+          onChanged();
+        }} />
       ) : null}
-      {restored ? <Text>{restored}</Text> : null}
     </Stack>
   );
 }
