@@ -32,6 +32,7 @@ import type {
 } from '../core/types';
 import { fixedClock, type MemoryStore } from '../platform/memory';
 import type { Store } from '../platform/schema';
+import { detectConcealment } from '../core/c1-concealment';
 import { benchSettings, BENCH_NOW, BENCH_PROJECT } from './fixtures';
 
 /** Détecteur C1 s'il existe — chargé dynamiquement, absent = couche non jouée. */
@@ -104,21 +105,16 @@ export interface BenchResult {
   settings: ProjectSettings;
 }
 
-/** Le lot C1 n'est pas fusionné : chemin opaque pour le résolveur de bundling. */
-const C1_MODULE = ['..', 'core', 'c1-concealment.ts'].join('/');
-let c1Cache: C1Detector | null | undefined;
+/**
+ * Détecteur C1 réel (§6). L'import est **statique** : le bundler Forge ne résout
+ * pas un import dynamique à spécificateur variable (`docs/FORGE.md` §1), et le lot
+ * C1 est dans l'arbre — le banc joue donc la couche au lieu de la déclarer absente.
+ * Les tests peuvent toujours injecter `null` pour vérifier le repli.
+ */
+const realC1: C1Detector = (text, language) => detectConcealment({ text, language });
 
-/** Cherche le détecteur C1 ; `null` s'il n'est pas (encore) dans l'arbre. */
 async function loadC1Detector(): Promise<C1Detector | null> {
-  if (c1Cache !== undefined) return c1Cache;
-  try {
-    const module = (await import(`./${C1_MODULE}`)) as Record<string, unknown>;
-    const fn = module.detectConcealment ?? module.scanConcealment ?? module.detectC1;
-    c1Cache = typeof fn === 'function' ? (fn as C1Detector) : null;
-  } catch {
-    c1Cache = null;
-  }
-  return c1Cache;
+  return realC1;
 }
 
 /** Segments d'une demande d'exemple : résumé, description, chaque commentaire. */

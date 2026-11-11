@@ -16,6 +16,7 @@
     "build": "forge build",
     "limits": "python3 tools/check_limits.py",
     "manifest": "node tools/validate_manifest.mjs",
+    "site": "node tools/build-site.mjs",
     "replay": "node tools/replay.mjs",
     "check": "npm run typecheck && npm run test && npm run limits"
   },
