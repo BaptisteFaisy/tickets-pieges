@@ -153,11 +153,11 @@ function sentenceAround(text: string, start: number, end: number): string {
 function looksReported(text: string, start: number, end: number, language: Language): boolean {
   const window = sentenceAround(text, start, end);
   if (/(?:^|\n)\s*>/.test(window)) return true;
-  const folded = foldText(`${window} ${text}`).text;
-  return (
-    REPORT_WORDS[language].test(folded) ||
-    REPORT_WORDS[language === 'fr' ? 'en' : 'fr'].test(folded)
-  );
+  // Une adresse contient souvent « example » ou « doc » : elle ne dit rien du
+  // propos de l'auteur, on la retire avant de chercher des mots de signalement.
+  const prose = foldText(`${window} ${text}`).text.replace(/\S*:\/\/\S*|\bwww\.\S*|\S*@\S*/g, ' ');
+  const other: Language = language === 'fr' ? 'en' : 'fr';
+  return REPORT_WORDS[language].test(prose) || REPORT_WORDS[other].test(prose);
 }
 
 /** Une URL banale n'est retenue que si quelque chose l'accompagne (§10). */
