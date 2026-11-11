@@ -76,9 +76,9 @@ describe('niveau de suspicion (§4)', () => {
     expect(computeSuspicion({ findings: [finding({ layer: 'C3', kind: 'model-verdict', confidence: 0.9 })] })).toBe('review');
   });
 
-  it('une réponse de modèle non conforme vaut suspect pour le passage', () => {
+  it('une réponse de modèle non conforme vaut « suspect », jamais « sain » (§6)', () => {
     const findings = [finding({ layer: 'C3', kind: 'model-malformed', confidence: 0.9 })];
-    expect(computeSuspicion({ findings })).toBe('review');
+    expect(computeSuspicion({ findings })).toBe('suspect');
   });
 
   it('le contexte seul ne dépasse jamais « à vérifier »', () => {
