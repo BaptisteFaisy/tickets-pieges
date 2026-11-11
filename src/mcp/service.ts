@@ -10,15 +10,22 @@
  */
 
 import { defaultSettings } from '../core/trust-rules';
+import { computeOrigin } from '../core/origin';
+import { computeSuspicion } from '../core/suspicion';
 import { t } from '../core/i18n';
-import type {
-  Finding,
-  Language,
-  ProjectSettings,
-  SegmentOrigin,
-  SegmentSource,
-  Verdict,
+import {
+  TRUST_LEVELS,
+  type Finding,
+  type Language,
+  type OutboundContext,
+  type ProjectSettings,
+  type SegmentOrigin,
+  type SegmentSource,
+  type TrustLevel,
+  type Verdict,
 } from '../core/types';
+import type { FramingSegment } from '../core/framing';
+import type { JsonPayload } from './result';
 import { createMemoryStore } from '../platform/memory';
 import type { Clock, IssueStateRow, JiraIssueView, JiraPort, SegmentRow, Store } from '../platform/schema';
 
@@ -197,4 +204,82 @@ export function originLabelOf(origin: SegmentOrigin, language: Language): string
   if (!first) return t(language, 'trust.T0');
   const text = t(language, first.code, { detail: first.detail ?? '' });
   return text === first.code ? first.code : text;
+}
+
+// ------------------------------------------------------- aides partagées (§16)
+
+/**
+ * Ce que cette branche n'exécute pas : la couche C1 (dissimulation) n'est pas
+ * fusionnée et la couche C3 (modèle) ne tourne pas depuis un outil — un `GET`
+ * n'appelle aucun réseau. Le dire est obligatoire (§21 : pas de fausse assurance).
+ */
+export function layerWarnings(language: Language): string[] {
+  const fr = language === 'fr';
+  return [
+    fr
+      ? 'couche C1 (dissimulation) non fusionnée sur cette branche : les caractères invisibles ne sont pas cherchés'
+      : 'layer C1 (concealment) is not merged on this branch: invisible characters are not searched',
+    fr
+      ? 'couche C3 (modèle) non exécutée : un outil de lecture n’appelle aucun réseau'
+      : 'layer C3 (model) not run: a read tool makes no network call',
+  ];
+}
+
+/** Contexte du sas (§10) : ce que Jira et les réglages en disent, rien de deviné. */
+export function outboundContextOf(bundle: IssueBundle): OutboundContext {
+  return {
+    issueKey: bundle.issue.key,
+    requestText: bundle.issue.description.trim().length > 0 ? bundle.issue.description : undefined,
+    requesterOrganization: bundle.issue.organizationName,
+    otherOrganizations: [],
+    otherIssueKeys: [],
+    knownUrls: [],
+    strict: bundle.settings.strictOutbound,
+    taintedSession: false,
+  };
+}
+
+/** Segments encadrables d'une demande (§8.2) : origine, confiance, suspicion. */
+export async function framingSegments(bundle: IssueBundle): Promise<FramingSegment[]> {
+  return bundle.segments.map((row) => {
+    const origin = computeOrigin(segmentSourceOf(row, bundle.issue), bundle.settings);
+    const findings = bundle.findings.filter((finding) => finding.segmentId === row.id);
+    return {
+      segmentId: row.id,
+      field: row.field,
+      refId: row.refId ?? undefined,
+      body: row.text,
+      trustLevel: origin.trustLevel,
+      suspicion: computeSuspicion({ findings, verdicts: bundle.verdicts }),
+      originLabel: originLabelOf(origin, bundle.language),
+      findings,
+    };
+  });
+}
+
+/** Un constat tel qu'un outil le rend : plat, lisible, verdict inclus. */
+export function findingView(finding: Finding, verdict: Verdict | null) {
+  return {
+    findingId: finding.id,
+    segmentId: finding.segmentId,
+    layer: finding.layer,
+    kind: finding.kind,
+    ruleId: finding.ruleId,
+    excerpt: finding.excerpt,
+    askSummary: finding.askSummary,
+    confidence: finding.confidence,
+    status: finding.status,
+    campaignHash: finding.campaignHash ?? null,
+    createdAt: finding.createdAt,
+    verdict: verdict?.decision ?? null,
+    verdictAt: verdict?.at ?? null,
+  };
+}
+
+/** Niveau de confiance annoncé par l'agent : reconnu, sinon le repli déclaré. */
+export function trustLevelOf(payload: JsonPayload, fallback: TrustLevel = 'T1'): TrustLevel {
+  const value = payload.trustLevel;
+  if (typeof value !== 'string') return fallback;
+  const upper = value.trim().toUpperCase();
+  return (TRUST_LEVELS as readonly string[]).includes(upper) ? (upper as TrustLevel) : fallback;
 }
