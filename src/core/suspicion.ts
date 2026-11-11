@@ -96,8 +96,12 @@ export function computeSuspicion(input: SuspicionInput): SuspicionLevel {
 
   const anyDeterministic = active.some((finding) => DETERMINISTIC.has(finding.layer));
   const modelDoubt = active.some(
-    (finding) => finding.layer === 'C3' && (finding.kind === 'model-verdict' || finding.kind === 'model-malformed'),
+    (finding) => finding.layer === 'C3' && finding.kind === 'model-verdict',
   );
+  // §6 : « une réponse non conforme vaut suspect ». Un modèle refusé, bavard ou
+  // détourné ne blanchit jamais un passage : le doute monte, il ne descend pas.
+  const modelMalformed = active.some((finding) => finding.kind === 'model-malformed');
+  if (modelMalformed) level = maxSuspicion(level, 'suspect');
   if (anyDeterministic || modelDoubt) level = maxSuspicion(level, 'review');
 
   const riskyVerdict = [...decided.values()].some((verdict) => verdict.decision === 'legitimate-risky');
