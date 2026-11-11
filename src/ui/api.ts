@@ -168,8 +168,8 @@ async function call<T>(key: ResolverKey, payload: Record<string, unknown>): Prom
   }
 }
 
-export const getIssuePanel = (issueKey: string): Promise<ApiResult<PanelView>> =>
-  call<PanelView>('getIssuePanel', { issueKey });
+export const getIssuePanel = (issueId: string, issueKey: string): Promise<ApiResult<PanelView>> =>
+  call<PanelView>('getIssuePanel', { issueId, issueKey });
 
 export const listSuspects = (projectKey?: string, limit = 100): Promise<ApiResult<SuspectItem[]>> =>
   call<SuspectItem[]>('listSuspects', { projectKey: projectKey ?? null, limit });
@@ -209,3 +209,46 @@ export const listSamples = (): Promise<ApiResult<SampleRequest[]>> => call<Sampl
 
 export const runPlayground = (sampleId: string): Promise<ApiResult<PlaygroundResult>> =>
   call<PlaygroundResult>('runPlayground', { sampleId });
+
+/* ------------------------------------------------- côté résolveur (§17) */
+
+import type { Clock, Store } from '../platform/schema';
+
+/** Ce dont chaque résolveur d'écran a besoin : stockage, heure, rôle sécurité. */
+export interface ResolverDeps {
+  store: Store;
+  clock: Clock;
+  /** Comptes du rôle sécurité (§21) — les originaux ne s'ouvrent qu'à eux. */
+  securityAccounts: string[];
+}
+
+/** Un gestionnaire d'écran : jamais d'exception, une enveloppe uniforme. */
+export type UiHandler = (payload: Record<string, unknown>, context?: unknown) => Promise<ApiResult<unknown>>;
+
+export function ok<T>(data: T): ApiOk<T> {
+  return { ok: true, data };
+}
+
+export function fail(error: string): ApiErr {
+  return { ok: false, error };
+}
+
+/** Paramètre texte obligatoire ; `null` s'il manque ou vide. */
+export function payloadText(payload: Record<string, unknown>, key: string): string | null {
+  const value = payload[key];
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+}
+
+/** Paramètre numérique optionnel, avec valeur par défaut bornée. */
+export function payloadNumber(payload: Record<string, unknown>, key: string, fallback: number, max = 1000): number {
+  const value = payload[key];
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(1, Math.round(value)));
+}
+
+/** Identifiant de compte appelé, extrait du contexte Forge sans jamais jeter. */
+export function accountIdOf(context: unknown): string | null {
+  if (typeof context !== 'object' || context === null) return null;
+  const value = (context as Record<string, unknown>)['accountId'];
+  return typeof value === 'string' && value !== '' ? value : null;
+}
