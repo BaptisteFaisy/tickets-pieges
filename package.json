@@ -1,0 +1,39 @@
+{
+  "name": "tickets-pieges",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tickets piégés — origine, détection et sas pour le texte externe qui entre dans Jira Service Management (Atlassian Forge · Codegeist 2026)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "forge lint",
+    "build": "forge build",
+    "limits": "python3 tools/check_limits.py",
+    "manifest": "node tools/validate_manifest.mjs",
+    "replay": "node tools/replay.mjs",
+    "check": "npm run typecheck && npm run test && npm run limits"
+  },
+  "dependencies": {
+    "@forge/api": "^8.5.0",
+    "@forge/bridge": "^7.3.0",
+    "@forge/events": "^3.0.10",
+    "@forge/llm": "^1.0.10",
+    "@forge/react": "^12.5.0",
+    "@forge/resolver": "^2.0.2",
+    "@forge/sql": "^4.0.10"
+  },
+  "devDependencies": {
+    "@forge/manifest": "^13.9.0",
+    "@types/node": "^22.10.0",
+    "ajv": "^8.20.0",
+    "js-yaml": "^4.3.2",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  }
+}
