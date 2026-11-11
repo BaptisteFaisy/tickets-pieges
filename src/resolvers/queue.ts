@@ -40,7 +40,7 @@ async function collectItems(store: Store, states: IssueStateRow[], projectKey: s
     const findings = await store.findings.byIssue(state.issueId);
     for (const finding of findings) {
       const verdict = lastVerdict(await store.verdicts.byFinding(finding.id));
-      items.push({ finding, issueKey: state.issueKey, suspicion: state.suspicionLevel, campaignHash: finding.campaignHash, verdict });
+      items.push({ finding, issueKey: state.issueKey, suspicion: state.suspicionLevel, campaignHash: finding.campaignHash, verdict: verdict ?? undefined });
     }
   }
   return items;
@@ -70,7 +70,7 @@ async function toSuspectItems(store: Store, items: ReviewItem[]): Promise<Suspec
       confidence: item.finding.confidence,
       campaignHash: item.campaignHash ?? null,
       campaignCount,
-      verdict: item.verdict,
+      verdict: item.verdict ?? null,
       createdAt: item.finding.createdAt,
     });
   }
