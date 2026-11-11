@@ -9,6 +9,7 @@
  * langues sont obligatoires (§21 : français et anglais au minimum).
  */
 import { canaryCatalog } from './catalog/canary';
+import { decodeCatalog } from './catalog/decode';
 import { detectionC1Catalog } from './catalog/detection-c1';
 import { detectionC2Catalog } from './catalog/detection-c2';
 import { detectionC3Catalog } from './catalog/detection-c3';
@@ -31,6 +32,7 @@ const CATALOGS = [
   framingCatalog,
   outboundCatalog,
   canaryCatalog,
+  decodeCatalog,
   hookCatalog,
   uiCatalog,
 ];
