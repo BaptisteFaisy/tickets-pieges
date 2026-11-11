@@ -80,7 +80,11 @@ export function renderReport(report: ReplayReport, language: Language = 'fr'): s
 function comparisonLines(summary: CompareSummary, language: Language): string[] {
   const lines = summary.comparisons.flatMap((item) => {
     const head = `  ${item.sampleId} : ${item.verdict}`;
-    return item.detail.length > 0 ? [head, ...item.detail.map((detail) => `    · ${detail}`)] : [head];
+    const detail = item.detail.map((line) => `    · ${line}`);
+    const notPlayed = item.notPlayed.length > 0
+      ? [`    · ${language === 'fr' ? 'couches non jouées' : 'layers not played'} : ${item.notPlayed.join(', ')}`]
+      : [];
+    return [head, ...detail, ...notPlayed];
   });
   return [language === 'fr' ? 'Comparaison à l’attendu :' : 'Comparison with expectations:', ...lines, `  ${summary.headline}`];
 }

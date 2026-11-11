@@ -63,9 +63,10 @@ export interface SegmentFindings {
   findings: Finding[];
 }
 
-/** Couche non jouée pendant le rejet : pourquoi, honnêtement (§21). */
+/** Couche non jouée pendant le rejet : code stable + raison (§21). */
 export interface LayerGap {
   layer: 'C1' | 'C3';
+  code: 'c1-not-merged' | 'c3-not-played';
   reason: string;
 }
 
@@ -235,14 +236,22 @@ function gapsOf(c1: C1Detector | null, language: Language): { gaps: LayerGap[]; 
   const gaps: LayerGap[] = [];
   const unanalyzed: UnanalyzedReason[] = [];
   if (!c1) {
-    gaps.push({ layer: 'C1', reason: language === 'fr'
-      ? 'lot C1 (dissimulation) non fusionné — couche non jouée'
-      : 'C1 (concealment) not merged yet — layer not played' });
+    gaps.push({
+      layer: 'C1',
+      code: 'c1-not-merged',
+      reason: language === 'fr'
+        ? 'lot C1 (dissimulation) non fusionné — couche non jouée'
+        : 'C1 (concealment) not merged yet — layer not played',
+    });
     unanalyzed.push('unsupported-format');
   }
-  gaps.push({ layer: 'C3', reason: language === 'fr'
-    ? 'aucun modèle appelé hors ligne — couche non jouée'
-    : 'no model call offline — layer not played' });
+  gaps.push({
+    layer: 'C3',
+    code: 'c3-not-played',
+    reason: language === 'fr'
+      ? 'aucun modèle appelé hors ligne — couche non jouée'
+      : 'no model call offline — layer not played',
+  });
   unanalyzed.push('model-pending');
   return { gaps, unanalyzed };
 }
@@ -422,7 +431,7 @@ export async function replaySample(sample: SampleRequest, options: ReplayOptions
     framedText: renderFramedRequest(framed, language),
     unanalyzed,
     gaps,
-    kinds: [...new Set(findings.map((finding) => finding.kind))],
+    kinds: [...new Set(findings.filter((finding) => finding.layer !== 'C4').map((finding) => finding.kind))],
   };
   if (options.store) {
     await persist({

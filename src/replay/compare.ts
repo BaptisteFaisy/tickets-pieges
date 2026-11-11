@@ -19,6 +19,8 @@ export interface RequestComparison {
   sampleId: string;
   verdict: 'conforme' | 'divergence';
   detail: string[];
+  /** Couches non jouées pendant le rejet — information, pas divergence. */
+  notPlayed: string[];
 }
 
 /** Bilan du jeu complet. */
@@ -48,7 +50,11 @@ function compareKinds(expected: FindingKind[], actual: FindingKind[]): string[] 
   return detail;
 }
 
-/** Verdict pour une demande : les trois champs de l'attendu, un par un. */
+/**
+ * Verdict pour une demande : les trois champs de l'attendu, un par un. Les
+ * couches non jouées (C1 non fusionné, C3 sans modèle) sont listées à part :
+ * elles informent, elles ne transforment pas chaque demande en divergence.
+ */
 export function compareOne(sample: SampleRequest, report: ReplayReport): RequestComparison {
   const detail: string[] = [];
   if (report.trustLevel !== sample.expected.trustLevel) {
@@ -58,13 +64,11 @@ export function compareOne(sample: SampleRequest, report: ReplayReport): Request
     detail.push(`suspicion : attendu ${sample.expected.suspicion}, obtenu ${report.suspicion}`);
   }
   detail.push(...compareKinds(sample.expected.kinds, report.kinds));
-  for (const gap of report.gaps) {
-    detail.push(`couche ${gap.layer} non jouée — ${gap.reason}`);
-  }
   return {
     sampleId: sample.id,
     verdict: detail.length === 0 ? 'conforme' : 'divergence',
     detail,
+    notPlayed: report.gaps.map((gap) => `${gap.layer} (${gap.code})`),
   };
 }
 
