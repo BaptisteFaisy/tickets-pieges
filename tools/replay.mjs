@@ -53,13 +53,26 @@ async function loadBench() {
 /** Jeu d'essai : le lot « jeu d'essai » d'abord, le jeu local sinon. */
 async function loadDataset(modules) {
   try {
-    const sample = await import(resolve(ROOT, 'src/sample/dataset.ts'));
-    const rows = sample.SAMPLE_REQUESTS ?? sample.sampleRequests ?? [];
-    if (rows.length > 0) return { samples: rows, label: 'src/sample (lot jeu d’essai)' };
+    const outdir = resolve(ROOT, 'node_modules/.banc/sample');
+    await build({
+      entryPoints: [resolve(ROOT, 'src/sample/dataset.ts')],
+      bundle: true,
+      format: 'esm',
+      platform: 'node',
+      outdir,
+      outbase: resolve(ROOT, 'src/sample'),
+      outExtension: { '.js': '.mjs' },
+      logLevel: 'error',
+    });
+    const sample = await import(resolve(outdir, 'dataset.mjs'));
+    const rows = typeof sample.loadDataset === 'function' ? sample.loadDataset() : (sample.SAMPLE_REQUESTS ?? []);
+    if (rows.length > 0) {
+      return { samples: [...rows], label: `src/sample — ${rows.length} demandes du jeu d’essai intégré` };
+    }
   } catch {
-    // Lot « jeu d'essai » pas encore fusionné : repli sur le jeu local.
+    // Jeu d'essai illisible : le repli local dit la vérité dans le rapport.
   }
-  return { samples: [...modules.fixtures.LOCAL_SAMPLES], label: 'jeu local src/replay/fixtures.ts (lot « jeu d’essai » non fusionné)' };
+  return { samples: [...modules.fixtures.LOCAL_SAMPLES], label: 'jeu local src/replay/fixtures.ts' };
 }
 
 /** Arguments de la ligne de commande. */
