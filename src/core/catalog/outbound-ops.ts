@@ -20,6 +20,7 @@ export const outboundOpsCatalog = {
     'outbound-ops.file.executable': 'pièce d’un type exécutable ou scriptable : {ext}',
     'outbound-ops.file.too-large': 'taille de pièce au-dessus de la borne : {bytes} octets',
     'outbound-ops.file.concealment': 'nom de pièce contenant des caractères invisibles',
+    'outbound-ops.file.long-name': 'nom de pièce anormalement long ({chars} caractères)',
     'outbound-ops.file.unanalyzed':
       'contenu de la pièce non analysé : le sas s’est limité au nom, au type et à la taille',
     'outbound-ops.file.checked': 'contenu de la pièce analysé par le sas',
@@ -43,6 +44,7 @@ export const outboundOpsCatalog = {
     'outbound-ops.file.executable': 'attachment of an executable or scriptable type: {ext}',
     'outbound-ops.file.too-large': 'attachment size above the bound: {bytes} bytes',
     'outbound-ops.file.concealment': 'attachment name contains invisible characters',
+    'outbound-ops.file.long-name': 'attachment name unusually long ({chars} characters)',
     'outbound-ops.file.unanalyzed':
       'attachment content not analyzed: the gate was limited to name, type and size',
     'outbound-ops.file.checked': 'attachment content analyzed by the gate',
