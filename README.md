@@ -151,6 +151,27 @@ ZeroClaw `hermes` agent as fallback. A red test can be handed to the test agent,
 a missing scope declaration to the scope agent. Agents never merge anything:
 only a green CI does. Details: [`docs/PIPELINE.md`](docs/PIPELINE.md).
 
+## State of the build
+
+Measured, not claimed (details and commands: [`docs/VALIDATIONS.md`](docs/VALIDATIONS.md)):
+
+- **Deployed and installed**: `forge lint` reports no issue, `forge build` succeeds,
+  `forge deploy -e development` is accepted (the platform validates the manifest, not
+  just the linter), and `forge install` completed on a Jira/JSM demo site
+  (`one-atlas-cndz.atlassian.net`) with all nine declared scopes.
+- **572 tests green** across 46 files, offline: no network, no Atlassian site needed.
+- **38 sample requests** replayed end to end by the offline bench
+  (`node tools/replay.mjs`): the 19 edge cases of the spec, in French and English,
+  through origin → C1 → C2 → C4 → findings → suspicion → mode → framing.
+- **Every file under 500 lines, every function under 50** (`tools/check_limits.py`),
+  and the manifest checked against itself (`tools/validate_manifest.mjs`: 10 MCP tools,
+  1 Rovo agent, 1 skill, 4 webtriggers, 5 triggers, 1 queue, 2 scheduled tasks).
+- **18 lots merged by the Mergify queue**, one pull request each, no direct push to
+  `main` after bootstrap.
+
+Still to be measured on the live site: the nine prototype points of spec §20 and the
+acceptance items that need the hosted model, a screen or a Rovo agent (§23.5-23.14).
+
 ## Licence
 
 MIT.
