@@ -149,15 +149,19 @@ function decodeUnicode(run: string): string | null {
   );
 }
 
-/** Un décodé doit être du texte lisible : lettres, ratio de contrôle faible. */
+/** Un décodé doit être du texte lisible : mots séparés, voyelles, peu de contrôle.
+ * Une chaîne encore encodée (base64/hex) n'a ni espace ni voyelles en proportion :
+ * elle n'est pas « lisible », ce qui permet d'arrêter l'imbrication au bon moment. */
 function isReadableText(value: string): boolean {
   if (value.length === 0) return false;
   const letters = (value.match(/[A-Za-zÀ-ÿ]/g) ?? []).length;
   if (letters === 0) return false;
   const spaces = (value.match(/\s/g) ?? []).length;
+  const vowels = (value.match(/[aeiouyàâäéèêëîïôöùûüÿ]/gi) ?? []).length;
   const controls = (value.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g) ?? []).length;
   if (controls / value.length > 0.05) return false;
-  return (letters + spaces) / value.length > 0.4;
+  if (spaces === 0 && value.length > 12) return false;
+  return vowels / letters > 0.15 && (letters + spaces) / value.length > 0.4;
 }
 
 /** Un run ressemblant à de l'encodé mais indécodable : signalé comme corrompu. */
@@ -204,6 +208,9 @@ function decodeRecursive(run: string, maxDepth: number): DecodeResult {
     scheme = step.scheme;
     current = step.value;
     depth += 1;
+    // texte final atteint (lisible) : on s'arrête, sinon on tenterait de
+    // re-décoder un texte clair en garbage. Sinon on poursuit l'imbrication.
+    if (isReadableText(current)) break;
   }
   return { decoded: current, scheme, depth };
 }
