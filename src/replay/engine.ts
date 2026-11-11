@@ -1,18 +1,8 @@
 /**
- * Moteur du banc d'essai (§17.7, TP-18) — la chaîne complète, hors ligne.
- *
- * Un `SampleRequest` du jeu d'essai traverse les cinq étapes du §18, dans
- * l'ordre, sans réseau ni plateforme :
- *
- *   1. origine calculée sans modèle (`src/core/origin.ts`) ;
- *   2. couches C1 et C2 dans la foulée (C1 si le lot est fusionné, C2 toujours) ;
- *   3. couche C3 **non jouée** : aucun modèle n'est appelé, le rapport le dit ;
- *   4. niveau de suspicion fixé, mode du projet appliqué (`suspicion`, `modes`) ;
- *   5. encadrement produit et tout est journalisé (`framing`, `Store` en mémoire).
- *
- * Contrat dur : domaine pur — aucun import `@forge/*`, aucune entrée-sortie,
- * aucune heure lue (l'instant est injecté). Le rendu texte et JSON vit dans
- * `report.ts`, la comparaison à l'attendu dans `compare.ts`.
+ * Moteur du banc d'essai (§17.7, TP-18) — les cinq étapes du §18 sur un
+ * `SampleRequest`, hors ligne : origine sans modèle ; C1 (si fusionné) et C2 ;
+ * C3 non jouée (aucun modèle appelé, le rapport le dit) ; suspicion et mode ;
+ * encadrement et journal. Domaine pur : aucune E/S, aucune heure lue.
  */
 
 import { detectAddressing } from '../core/c2-addressing';
@@ -53,14 +43,6 @@ export interface StepReport {
   code: string;
   title: string;
   outputs: string[];
-}
-
-/** Constats d'un segment, tels que le banc les rend. */
-export interface SegmentFindings {
-  segmentId: string;
-  field: string;
-  refId?: string;
-  findings: Finding[];
 }
 
 /** Couche non jouée pendant le rejet : code stable + raison (§21). */
@@ -181,7 +163,7 @@ function c2HitsOf(segment: SegmentSource, language: Language, settings: ProjectS
 }
 
 /** Constats C1 d'un segment si le lot C1 est fusionné ; sinon rien, et c'est dit. */
-async function c1HitsOf(segment: SegmentSource, language: Language, detector: C1Detector | null): Promise<LayerHit[]> {
+function c1HitsOf(segment: SegmentSource, language: Language, detector: C1Detector | null): LayerHit[] {
   if (!detector) return [];
   try {
     return detector(segment.text, language) ?? [];
@@ -190,10 +172,7 @@ async function c1HitsOf(segment: SegmentSource, language: Language, detector: C1
   }
 }
 
-/**
- * Signaux C4 d'un segment. La langue dominante n'est comparée que si la
- * description a permis de la mesurer : pas de devinette sur un texte court.
- */
+/** Signaux C4 d'un segment ; la langue dominante n'est comparée que si mesurée. */
 function c4HitsOf(
   segment: SegmentSource,
   language: Language,
@@ -205,20 +184,11 @@ function c4HitsOf(
 }
 
 /** Constats d'un segment, toutes couches déterministes jouées confondues. */
-async function findingsOfSegment(
-  segment: SegmentSource,
-  segmentId: string,
-  language: Language,
-  settings: ProjectSettings,
-  dominant: 'fr' | 'en' | 'other' | null,
-  now: string,
-  c1: C1Detector | null,
-): Promise<{ findings: Finding[]; c4: LayerHit[] }> {
-  const c1Hits = await c1HitsOf(segment, language, c1);
-  const c2Hits = c2HitsOf(segment, language, settings);
+function findingsOfSegment(prepared: PreparedReplay, segment: SegmentSource, segmentId: string): SegmentAnalysis {
+  const { language, settings, dominant, now, c1 } = prepared;
+  const hits = [...c1HitsOf(segment, language, c1), ...c2HitsOf(segment, language, settings)];
   const c4 = c4HitsOf(segment, language, dominant, now);
-  const findings = toFindings({ hits: [...c1Hits, ...c2Hits, ...c4], segment, segmentId, language, now });
-  return { findings, c4 };
+  return { findings: toFindings({ hits: [...hits, ...c4], segment, segmentId, language, now }), c4 };
 }
 
 /** Lignes de raison d'origine, traduites — le rapport les cite telles quelles. */
@@ -233,36 +203,19 @@ function originLabelOf(origin: SegmentOrigin): string {
 
 /** Ce qui n'a pas été analysé, dit honnêtement (§21) — jamais deviné. */
 function gapsOf(c1: C1Detector | null, language: Language): { gaps: LayerGap[]; unanalyzed: UnanalyzedReason[] } {
+  const fr = language === 'fr';
   const gaps: LayerGap[] = [];
-  const unanalyzed: UnanalyzedReason[] = [];
+  const unanalyzed: UnanalyzedReason[] = ['model-pending'];
   if (!c1) {
-    gaps.push({
-      layer: 'C1',
-      code: 'c1-not-merged',
-      reason: language === 'fr'
-        ? 'lot C1 (dissimulation) non fusionné — couche non jouée'
-        : 'C1 (concealment) not merged yet — layer not played',
-    });
-    unanalyzed.push('unsupported-format');
+    gaps.push({ layer: 'C1', code: 'c1-not-merged', reason: fr ? 'lot C1 non fusionné — couche non jouée' : 'C1 not merged yet — layer not played' });
+    unanalyzed.unshift('unsupported-format');
   }
-  gaps.push({
-    layer: 'C3',
-    code: 'c3-not-played',
-    reason: language === 'fr'
-      ? 'aucun modèle appelé hors ligne — couche non jouée'
-      : 'no model call offline — layer not played',
-  });
-  unanalyzed.push('model-pending');
+  gaps.push({ layer: 'C3', code: 'c3-not-played', reason: fr ? 'aucun modèle appelé hors ligne — couche non jouée' : 'no model call offline — layer not played' });
   return { gaps, unanalyzed };
 }
 
-/** Les cinq étapes du §18, une ligne par production — le rapport les montre. */
-function buildSteps(input: {
-  report: Omit<ReplayReport, 'steps'>;
-  language: Language;
-  c4Total: number;
-}): StepReport[] {
-  const { report, language, c4Total } = input;
+/** Étapes 1 à 3 du §18 : origine, couches déterministes, modèle non joué. */
+function earlySteps(report: Omit<ReplayReport, 'steps'>, language: Language): StepReport[] {
   const fr = language === 'fr';
   return [
     {
@@ -289,6 +242,13 @@ function buildSteps(input: {
       title: fr ? 'Couche C3 (modèle)' : 'Layer C3 (model)',
       outputs: report.gaps.filter((gap) => gap.layer === 'C3').map((gap) => `C3 — ${gap.reason}`),
     },
+  ];
+}
+
+/** Étapes 4 et 5 du §18 : décision de mode, encadrement et journal. */
+function lateSteps(report: Omit<ReplayReport, 'steps'>, language: Language, c4Total: number): StepReport[] {
+  const fr = language === 'fr';
+  return [
     {
       step: 4,
       code: 'step-decision',
@@ -297,9 +257,7 @@ function buildSteps(input: {
         fr
           ? `suspicion ${report.suspicion} · confiance ${report.trustLevel} · score C4 ${c4Total}`
           : `suspicion ${report.suspicion} · trust ${report.trustLevel} · C4 score ${c4Total}`,
-        fr
-          ? `mode ${report.modeDecision.mode} (${report.modeDecision.reasons.join(', ')})`
-          : `mode ${report.modeDecision.mode} (${report.modeDecision.reasons.join(', ')})`,
+        `mode ${report.modeDecision.mode} (${report.modeDecision.reasons.join(', ')})`,
       ],
     },
     {
@@ -318,6 +276,16 @@ function buildSteps(input: {
   ];
 }
 
+/** Les cinq étapes du §18, une ligne par production — le rapport les montre. */
+function buildSteps(input: {
+  report: Omit<ReplayReport, 'steps'>;
+  language: Language;
+  c4Total: number;
+}): StepReport[] {
+  const { report, language, c4Total } = input;
+  return [...earlySteps(report, language), ...lateSteps(report, language, c4Total)];
+}
+
 /** Écrit le rejeu dans le `Store` en mémoire : segments, constats, état, journal. */
 async function persist(input: {
   store: Store;
@@ -328,77 +296,104 @@ async function persist(input: {
 }): Promise<void> {
   const { store, report, segmentsById, settings, now } = input;
   await store.settings.put(settings);
-  for (const item of segmentsById) {
+  for (const { source, id, origin } of segmentsById) {
     await store.segments.put({
-      id: item.id,
-      issueId: item.source.issueId,
-      field: item.source.field,
-      refId: item.source.refId ?? null,
-      authorAccountId: item.source.author.accountId,
-      accountType: item.source.author.accountType,
-      orgId: item.source.author.organizationId ?? null,
-      channel: item.source.channel,
-      visibility: item.source.visibility ?? null,
-      trustLevel: item.origin.trustLevel,
-      contentHash: contentHash(item.source.text),
-      text: item.source.text,
-      scannedAt: now,
+      id, issueId: source.issueId, field: source.field, refId: source.refId ?? null,
+      authorAccountId: source.author.accountId, accountType: source.author.accountType,
+      orgId: source.author.organizationId ?? null, channel: source.channel,
+      visibility: source.visibility ?? null, trustLevel: origin.trustLevel,
+      contentHash: contentHash(source.text), text: source.text, scannedAt: now,
     });
   }
   for (const finding of report.findings) await store.findings.put(finding);
   await store.states.put({
-    issueId: report.issueId,
-    issueKey: report.issueKey,
-    projectKey: report.projectKey,
-    trustLevel: report.trustLevel,
-    suspicionLevel: report.suspicion,
-    modeApplied: report.modeDecision.mode,
-    unanalyzed: report.unanalyzed,
-    inheritedFrom: null,
-    updatedAt: now,
+    issueId: report.issueId, issueKey: report.issueKey, projectKey: report.projectKey,
+    trustLevel: report.trustLevel, suspicionLevel: report.suspicion,
+    modeApplied: report.modeDecision.mode, unanalyzed: report.unanalyzed,
+    inheritedFrom: null, updatedAt: now,
   });
-  await store.events.append('banc.replay', report.issueId, {
-    sampleId: report.sampleId,
-    suspicion: report.suspicion,
-    trust: report.trustLevel,
-    mode: report.modeDecision.mode,
-  });
+  await store.events.append('banc.replay', report.issueId, { sampleId: report.sampleId, suspicion: report.suspicion });
 }
 
-/** Rejoue une demande d'exemple : la chaîne complète du §18, sans réseau. */
-export async function replaySample(sample: SampleRequest, options: ReplayOptions = {}): Promise<ReplayReport> {
+/** Entrée préparée : segments, identifiants, origines, contexte de langue. */
+interface PreparedReplay {
+  segments: SegmentSource[];
+  ids: string[];
+  origins: SegmentOrigin[];
+  trustLevel: TrustLevel;
+  dominant: 'fr' | 'en' | 'other';
+  c1: C1Detector | null;
+  language: Language;
+  settings: ProjectSettings;
+  now: string;
+}
+
+/** Étape 1 du §18 : découpe en segments, origines calculées sans modèle. */
+async function prepareReplay(sample: SampleRequest, options: ReplayOptions): Promise<PreparedReplay> {
   const language = options.language ?? sample.language;
   const settings = options.settings ?? benchSettings();
   const now = options.now ?? BENCH_NOW;
   const segments = toSegments(sample, now);
   const ids = segments.map(segmentIdOf);
   const origins = computeOrigins(segments, settings);
-  const trustLevel = issueTrustLevel(origins);
-  const dominant = guessLanguage(sample.description);
   const c1 = options.c1Detector !== undefined ? options.c1Detector : await loadC1Detector();
+  return {
+    segments,
+    ids,
+    origins,
+    trustLevel: issueTrustLevel(origins),
+    dominant: guessLanguage(sample.description),
+    c1,
+    language,
+    settings,
+    now,
+  };
+}
 
-  const perSegment = await Promise.all(
-    segments.map((segment, index) =>
-      findingsOfSegment(segment, ids[index] ?? `${segment.issueId}:${index}`, language, settings, dominant, now, c1)),
-  );
+/** Résultat des étapes 2 à 4 : constats, score C4, manques, suspicion, état, mode. */
+interface AnalysisResult {
+  findings: Finding[];
+  c4Total: number;
+  gaps: LayerGap[];
+  unanalyzed: UnanalyzedReason[];
+  suspicion: SuspicionLevel;
+  state: IssueState;
+  modeDecision: ModeDecision;
+}
+
+/** Étapes 2 à 4 du §18 : constats assemblés, suspicion fixée, mode décidé. */
+function analyzeSync(prepared: PreparedReplay, sample: SampleRequest, perSegment: SegmentAnalysis[]): AnalysisResult {
   const findings = sortFindings(perSegment.flatMap((item) => item.findings));
   const c4Total = contextScore(perSegment.flatMap((item) => item.c4));
-  const { gaps, unanalyzed } = gapsOf(c1, language);
+  const { gaps, unanalyzed } = gapsOf(prepared.c1, prepared.language);
   const suspicion = computeSuspicion({ findings, contextScore: c4Total, usedModel: false });
   const state = toIssueState({
-    issue: { issueId: segments[0]?.issueId ?? sample.id, issueKey: `BANC-${sample.id.toUpperCase()}`, projectKey: BENCH_PROJECT },
-    origins,
+    issue: {
+      issueId: prepared.segments[0]?.issueId ?? sample.id,
+      issueKey: `BANC-${sample.id.toUpperCase()}`,
+      projectKey: BENCH_PROJECT,
+    },
+    origins: prepared.origins,
     findings,
-    mode: settings.mode,
+    mode: prepared.settings.mode,
     unanalyzed,
     contextScore: c4Total,
-    now,
+    now: prepared.now,
   });
-  const modeDecision = decideMode(state, settings, language);
-  const framed = frameRequest({
-    issueKey: state.issueKey,
+  return { findings, c4Total, gaps, unanalyzed, suspicion, state, modeDecision: decideMode(state, prepared.settings, prepared.language) };
+}
+
+/** Encadrement (§8.2) des segments préparés, avec les constats de chacun. */
+function framePrepared(
+  prepared: PreparedReplay,
+  input: { suspicion: SuspicionLevel; unanalyzed: UnanalyzedReason[]; issueKey: string; perSegment: SegmentAnalysis[] },
+  options: ReplayOptions,
+): FramedRequest {
+  const { segments, ids, origins, trustLevel, language } = prepared;
+  return frameRequest({
+    issueKey: input.issueKey,
     language,
-    notAnalyzed: unanalyzed,
+    notAnalyzed: input.unanalyzed,
     blockId: options.blockId,
     segments: segments.map((segment, index) => ({
       segmentId: ids[index] ?? `${segment.issueId}:${index}`,
@@ -406,47 +401,76 @@ export async function replaySample(sample: SampleRequest, options: ReplayOptions
       refId: segment.refId,
       body: segment.text,
       trustLevel: origins[index]?.trustLevel ?? trustLevel,
-      suspicion,
+      suspicion: input.suspicion,
       originLabel: originLabelOf(origins[index] ?? origins[0]!),
-      findings: perSegment[index]?.findings ?? [],
+      findings: input.perSegment[index]?.findings ?? [],
     })),
   });
+}
 
-  const base: Omit<ReplayReport, 'steps'> = {
+/** Constats d'un segment : ce que les couches déterministes ont levé. */
+interface SegmentAnalysis {
+  findings: Finding[];
+  c4: LayerHit[];
+}
+
+/** Constats de chaque segment, dans l'ordre du §18 (C1 et C2, puis C4). */
+function detectAll(prepared: PreparedReplay): SegmentAnalysis[] {
+  return prepared.segments.map((segment, index) =>
+    findingsOfSegment(prepared, segment, prepared.ids[index] ?? `${segment.issueId}:${index}`));
+}
+
+/** Le rapport sans les étapes : tout ce que la chaîne a produit. */
+function buildBaseReport(
+  sample: SampleRequest,
+  prepared: PreparedReplay,
+  analysis: ReturnType<typeof analyzeSync>,
+  framed: FramedRequest,
+): Omit<ReplayReport, 'steps'> {
+  return {
     sampleId: sample.id,
-    issueId: state.issueId,
-    issueKey: state.issueKey,
-    projectKey: state.projectKey,
-    language,
-    now,
-    segments,
-    origins,
-    trustLevel,
-    findings,
-    contextScore: c4Total,
-    suspicion,
-    state,
-    modeDecision,
+    issueId: analysis.state.issueId,
+    issueKey: analysis.state.issueKey,
+    projectKey: analysis.state.projectKey,
+    language: prepared.language,
+    now: prepared.now,
+    segments: prepared.segments,
+    origins: prepared.origins,
+    trustLevel: prepared.trustLevel,
+    findings: analysis.findings,
+    contextScore: analysis.c4Total,
+    suspicion: analysis.suspicion,
+    state: analysis.state,
+    modeDecision: analysis.modeDecision,
     framed,
-    framedText: renderFramedRequest(framed, language),
-    unanalyzed,
-    gaps,
-    kinds: [...new Set(findings.filter((finding) => finding.layer !== 'C4').map((finding) => finding.kind))],
+    framedText: renderFramedRequest(framed, prepared.language),
+    unanalyzed: analysis.unanalyzed,
+    gaps: analysis.gaps,
+    kinds: [...new Set(analysis.findings.filter((f) => f.layer !== 'C4').map((f) => f.kind))],
   };
+}
+
+/** Rejoue une demande d'exemple : la chaîne complète du §18, sans réseau. */
+export async function replaySample(sample: SampleRequest, options: ReplayOptions = {}): Promise<ReplayReport> {
+  const prepared = await prepareReplay(sample, options);
+  const perSegment = detectAll(prepared);
+  const analysis = analyzeSync(prepared, sample, perSegment);
+  const framed = framePrepared(prepared, { ...analysis, issueKey: analysis.state.issueKey, perSegment }, options);
+  const base = buildBaseReport(sample, prepared, analysis, framed);
   if (options.store) {
     await persist({
       store: options.store,
       report: base,
-      settings,
-      now,
-      segmentsById: segments.map((source, index) => ({
+      settings: prepared.settings,
+      now: prepared.now,
+      segmentsById: prepared.segments.map((source, index) => ({
         source,
-        id: ids[index] ?? `${source.issueId}:${index}`,
-        origin: origins[index] ?? origins[0]!,
+        id: prepared.ids[index] ?? `${source.issueId}:${index}`,
+        origin: prepared.origins[index] ?? prepared.origins[0]!,
       })),
     });
   }
-  return { ...base, steps: buildSteps({ report: base, language, c4Total }) };
+  return { ...base, steps: buildSteps({ report: base, language: prepared.language, c4Total: analysis.c4Total }) };
 }
 
 /** Rejoue tout un jeu d'essai, dans l'ordre du fichier. */
