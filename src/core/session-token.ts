@@ -167,7 +167,9 @@ export function verifySessionToken(
   if (typeof token !== 'string') return refused('malformed');
   const parts = token.split('.');
   if (parts.length !== 3) return refused('malformed');
-  const [version, payload, signature] = parts;
+  const version = parts[0] ?? '';
+  const payload = parts[1] ?? '';
+  const signature = parts[2] ?? '';
   if (version !== SESSION_TOKEN_VERSION) return refused('unsupported-version');
   if (!signatureMatches(`${version}.${payload}`, signature, key)) return refused('bad-signature');
   const claims = decodeClaims(payload);

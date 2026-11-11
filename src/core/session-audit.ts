@@ -103,6 +103,9 @@ const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
 /** Un motif : une clé de catalogue ou un code court, en minuscules. */
 const DETAIL_KEY = /^[a-z0-9][a-z0-9._:-]{0,79}$/;
 
+/** Une empreinte : un hachage hexadécimal, 6 à 64 caractères. */
+const FINGERPRINT = /^[0-9a-f]{6,64}$/i;
+
 /** Garde un identifiant, vide tout ce qui n'en est pas un. */
 function safe(value: string | undefined): string {
   return typeof value === 'string' && IDENTIFIER.test(value) ? value : '';
@@ -111,6 +114,14 @@ function safe(value: string | undefined): string {
 /** Garde un motif lisible ; un texte libre est omis, pas recopié. */
 function safeDetail(value: string | undefined): string {
   return typeof value === 'string' && DETAIL_KEY.test(value) ? value : '';
+}
+
+/**
+ * Garde une empreinte. Une empreinte est un hachage hexadécimal : un IBAN, un
+ * téléphone ou un courriel collé dans ce champ ne passe pas (§21).
+ */
+function safeFingerprint(value: string | undefined): string {
+  return typeof value === 'string' && FINGERPRINT.test(value) ? value.toLowerCase() : '';
 }
 
 /** Une date ISO valable, sinon vide (le journal n'invente pas d'horodatage). */
@@ -128,7 +139,7 @@ export function sanitizeEntry(entry: AuditEntry): SanitizedEntry {
     action: safe(entry.action),
     issueId: safe(entry.issueId),
     toolRef: safe(entry.toolRef),
-    fingerprint: safe(entry.fingerprint),
+    fingerprint: safeFingerprint(entry.fingerprint),
     detail: safeDetail(entry.detail),
   };
 }
@@ -203,6 +214,7 @@ export function withheldCount(entries: AuditEntry[]): number {
     if (entry.detail && !clean.detail) held += 1;
     if (entry.action && !clean.action) held += 1;
     if (entry.issueId && !clean.issueId) held += 1;
+    if (entry.fingerprint && !clean.fingerprint) held += 1;
   }
   return held;
 }
