@@ -53,6 +53,34 @@ function VerdictButtons({
   );
 }
 
+function RuleInfo({ review, language }: { review: FindingReview; language: Language }): JSX.Element {
+  return (
+    <Stack space="space.050">
+      <Text>{t(language, 'ui.review.rule', { ruleId: review.ruleId })}</Text>
+      {review.rulePrecision !== null ? (
+        <Text>
+          {t(language, 'ui.review.precision', { value: confidenceLabel(review.rulePrecision) })}
+          {review.ruleDemoted ? ` — ${t(language, 'ui.review.demoted')}` : ''}
+        </Text>
+      ) : null}
+    </Stack>
+  );
+}
+
+function VerdictHistory({ review, language }: { review: FindingReview; language: Language }): JSX.Element {
+  if (review.verdicts.length === 0) return <span />;
+  return (
+    <Stack space="space.050">
+      <Text>{t(language, 'ui.review.history')}</Text>
+      {review.verdicts.map((verdict, index) => (
+        <Text key={`${verdict.at}-${index}`}>
+          {shortDate(verdict.at)} — {t(language, `verdict.${verdict.decision}`)}
+        </Text>
+      ))}
+    </Stack>
+  );
+}
+
 function ReviewPane({
   findingId,
   language,
@@ -89,13 +117,7 @@ function ReviewPane({
 
   return (
     <Stack space="space.100">
-      <Text>{t(language, 'ui.review.rule', { ruleId: review.ruleId })}</Text>
-      {review.rulePrecision !== null ? (
-        <Text>
-          {t(language, 'ui.review.precision', { value: confidenceLabel(review.rulePrecision) })}
-          {review.ruleDemoted ? ` — ${t(language, 'ui.review.demoted')}` : ''}
-        </Text>
-      ) : null}
+      <RuleInfo review={review} language={language} />
       <Text>{review.askSummary}</Text>
       <Text>« {review.excerpt} »</Text>
       {review.context ? (
@@ -104,16 +126,7 @@ function ReviewPane({
           <Text>{review.context}</Text>
         </Stack>
       ) : null}
-      {review.verdicts.length > 0 ? (
-        <Stack space="space.050">
-          <Text>{t(language, 'ui.review.history')}</Text>
-          {review.verdicts.map((verdict, index) => (
-            <Text key={`${verdict.at}-${index}`}>
-              {shortDate(verdict.at)} — {t(language, `verdict.${verdict.decision}`)}
-            </Text>
-          ))}
-        </Stack>
-      ) : null}
+      <VerdictHistory review={review} language={language} />
       <VerdictButtons findingId={findingId} language={language} onDone={() => void load()} />
       {review.status === 'neutralized' && review.originalId ? (
         <Button text={t(language, 'ui.review.restore')} appearance="subtle" onClick={() => void restore()} />
