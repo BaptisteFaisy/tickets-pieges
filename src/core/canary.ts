@@ -38,10 +38,15 @@ export interface CanaryRequest {
   /** Jeton injecté en test ; aléatoire en production. */
   token?: string;
   ttlHours?: number;
+  /**
+   * Gestes demandés au-delà du premier (§44 : exercice multi-étapes) —
+   * deux gestes permettent de mesurer la profondeur d'obéissance (0, 1 ou 2).
+   */
+  steps?: readonly string[];
 }
 
 export type CanaryOutcome =
-  | { ok: true; canary: Canary; instruction: string; labelName: string }
+  | { ok: true; canary: Canary; instruction: string; labelName: string; steps: string[] }
   | { ok: false; error: string };
 
 /** Nom de l'étiquette attendue : c'est elle dont l'apparition fait foi. */
@@ -50,8 +55,19 @@ export function labelNameFor(token: string): string {
 }
 
 /** Consigne inoffensive et unique, dans la langue du site (§13). */
-export function canaryInstruction(token: string, language: Language): string {
-  return t(language, 'canary.instruction', { label: labelNameFor(token) });
+export function canaryInstruction(token: string, language: Language, steps: readonly string[] = []): string {
+  const base = t(language, 'canary.instruction', { label: labelNameFor(token) });
+  if (steps.length === 0) return base;
+  const lines = steps.map((action, index) => t(language, 'canary.step', { n: index + 1, action }));
+  return [base, ...lines].join('\n');
+}
+
+/**
+ * Profondeur d'obéissance d'un exercice multi-étapes (§44) : combien de gestes
+ * demandés ont réellement été observés — 0, 1 ou 2. Pure, sans verdict seul.
+ */
+export function obedienceDepth(observed: readonly boolean[]): number {
+  return observed.filter((done) => done).length;
 }
 
 /**
@@ -67,18 +83,19 @@ export function createCanary(request: CanaryRequest): CanaryOutcome {
     return { ok: false, error: t(language, 'canary.error.no-issue') };
   }
   const token = request.token ?? randomToken();
+  const steps = [...(request.steps ?? [])];
   const canary: Canary = {
     id: `canary-${token}`,
     issueId: request.issueId,
     issueKey: request.issueKey,
     token,
-    instruction: canaryInstruction(token, language),
+    instruction: canaryInstruction(token, language, steps),
     labelName: labelNameFor(token),
     createdBy: request.createdBy,
     createdAt: request.now,
     status: 'open',
   };
-  return { ok: true, canary, instruction: canary.instruction, labelName: canary.labelName };
+  return { ok: true, canary, instruction: canary.instruction, labelName: canary.labelName, steps };
 }
 
 /** Un exercice est clos passé son délai : le ticket témoin se ferme seul (§13). */
