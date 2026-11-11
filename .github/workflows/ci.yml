@@ -1,0 +1,144 @@
+name: CI
+
+# CI du dépôt Tickets piégés : types, tests, limites de taille, manifeste,
+# gardes anti-régression. Dépôt mono-paquet (aucun workspace npm) : un seul
+# `tsconfig.json` à la racine, les tests vivent à côté du code (`src/**/*.test.ts`).
+# Le check publié s'appelle `ci` (nom du job) : il est exigé par le ruleset de
+# `main` et par la file Mergify, avec `ci-budget` et `couche0`.
+#
+# Budget : règle user (5 minutes maximum par job). Les runners
+# self-hosted n'ont pas Node sur le PATH : il est installé une fois pour
+# l'utilisateur du runner dans ~/.local/node (voir docs/ARCHITECTURE.md).
+on:
+  pull_request:
+  # File de merge : même contrôle sur le commit temporaire du groupe.
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ci
+    runs-on: [self-hosted, linux, x64, tickets-pieges-worker]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          clean: false
+
+      # Runners self-hosted persistants : un sous-dossier parasite d'un run
+      # précédent peut survivre et fausser les contrôles. node_modules est
+      # exclu (npm ci le remplace de toute façon) pour garder le run court.
+      - name: Nettoyage du workspace
+        shell: bash
+        run: git clean -ffdx -e node_modules
+
+      # Le /tmp des runners est un tmpfs saturable : vitest y meurt en ENOSPC
+      # alors que le disque a encore de la place. Les temporaires partent donc
+      # sur le disque, dans le home du runner.
+      - name: Temporaires sur le disque (jamais dans le tmpfs /tmp)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cache/ci-tmp"
+          echo "TMPDIR=$HOME/.cache/ci-tmp" >> "$GITHUB_ENV"
+
+      - name: Node du worker (hors PATH par défaut)
+        shell: bash
+        run: |
+          set -euo pipefail
+          NODE_BIN="$HOME/.local/node/bin"
+          if [ ! -x "$NODE_BIN/node" ]; then
+            echo "::error::Node introuvable dans $NODE_BIN (installation du worker absente)"
+            exit 1
+          fi
+          echo "$NODE_BIN" >> "$GITHUB_PATH"
+          "$NODE_BIN/node" --version
+
+      # Dépendances : installées une fois par runner (node_modules survit au
+      # `git clean` ci-dessus), réinstallées seulement si le verrou change.
+      # Sans ce cache, `npm ci` coûte plus que le budget de 5 min quand la
+      # machine des runners est chargée.
+      - name: Dépendances (cache du runner, réinstallation si verrou changé)
+        shell: bash
+        run: |
+          set -euo pipefail
+          HASH="$(sha256sum package-lock.json | cut -d' ' -f1)"
+          STAMP="node_modules/.ci-lock-hash"
+          if [ -d node_modules ] && [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$HASH" ]; then
+            echo "cache node_modules à jour ($HASH) — pas de réinstallation"
+          else
+            npm ci --prefer-offline --no-audit --no-fund
+            printf '%s' "$HASH" > "$STAMP"
+          fi
+
+      - name: Types (tsconfig racine)
+        shell: bash
+        run: npx tsc --noEmit
+
+      - name: Tests du domaine, de la plateforme et des résolveurs
+        shell: bash
+        run: npx vitest run --reporter=dot
+
+      # Règles de taille du dépôt (moins de 500 lignes par fichier, moins de
+      # 50 lignes par fonction) et cohérence du manifeste Forge : deux gardes
+      # déterministes, quelques secondes, aucun réseau.
+      - name: Limites de taille et manifeste Forge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/check_limits.py
+          node tools/validate_manifest.mjs
+
+      - name: Sanity docs (UTF-8, non vides)
+        shell: bash
+        run: |
+          python3 - <<'EOF'
+          import pathlib
+          exts = {".md", ".mdx", ".txt"}
+          vides, illisibles, total = [], [], 0
+          for f in sorted(pathlib.Path(".").rglob("*")):
+              posix = f.as_posix()
+              if ".git/" in posix or "node_modules/" in posix or f.suffix.lower() not in exts:
+                  continue
+              total += 1
+              try:
+                  contenu = f.read_text(encoding="utf-8")
+              except (OSError, UnicodeError):
+                  illisibles.append(posix)
+                  continue
+              if not contenu.strip():
+                  vides.append(posix)
+          print("%d doc(s) contrôle(s)" % total)
+          for f in illisibles:
+              print("::error::illisible en UTF-8 : %s" % f)
+          for f in vides:
+              print("::error::document vide : %s" % f)
+          raise SystemExit(1 if (illisibles or vides) else 0)
+          EOF
+
+      # Les gardes de la CI se testent elles-mêmes : couche0, agents de
+      # conflit, de périmètre et de test rouge, repli hermes, triage —
+      # stdlib, quelques secondes, aucun réseau (le triage est testé sur des
+      # journaux fictifs).
+      - name: Tests des gardes CI (couche0, conflit, périmètre, test rouge, triage)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/hermes/test_a2a.py
+          python3 tools/test_triage.py
+          python3 .github/couche0/test_check_couche0.py
+          python3 .github/fireworks/test_conflict_agent.py
+          python3 .github/fireworks/test_provider.py
+          python3 .github/fireworks/test_test_agent.py
+          python3 .github/fireworks/test_scope_agent.py
+          python3 .github/fireworks/test_union_journal.py
+          python3 .github/fireworks/test_quota.py
