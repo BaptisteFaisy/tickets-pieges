@@ -1,37 +1,109 @@
 /**
- * Événements Jira (§18 : déroulement à l'arrivée d'une demande) — lot Jobs.
+ * Déclencheurs Jira (§18) — le glue le plus mince possible.
  *
- * Ordre imposé par le cahier :
- *   1. l'origine est calculée aussitôt, sans modèle, et écrite dans la propriété ;
- *   2. les couches C1 et C2 passent dans la foulée ;
- *   3. la couche C3 est mise en file (`pieges-c3`) ;
- *   4. le niveau de suspicion est fixé, le mode du projet s'applique ;
- *   5. tout est journalisé.
+ * Chaque handler fait trois choses : lire la clé du ticket dans l'événement,
+ * appeler `scanIssue` (le pipeline en cinq étapes), journaliser. Aucune règle du
+ * domaine ne vit ici : un handler qui calcule est un handler qu'on ne peut pas
+ * tester.
  *
- * Squelette : les corps sont remplacés par le lot Jobs.
+ * Ces fonctions importent le câblage Forge (`./support`) : elles ne sont donc pas
+ * couvertes par les tests unitaires. Ce qu'elles font est testé via
+ * `src/jobs/pipeline.test.ts` et `src/jobs/events.test.ts`.
  */
 
-/** `avi:jira:created:issue` — origine + C1/C2 + mise en file de C3. */
+import { inherit } from '../core/inheritance';
+import { eventIssueKey, eventLinkedIssueKey, eventLinkType, eventSourceIssueKey } from './events';
+import { scanIssue } from './pipeline';
+import { createForgeDeps } from './support';
+
+/** Clé du ticket lue dans l'événement, ou `null` — et alors on ne fait rien. */
+function keyOf(event: unknown): string | null {
+  return eventIssueKey(event);
+}
+
+/** `avi:jira:created:issue` — origine immédiate, puis C1/C2, puis file C3 (§18). */
 export async function issueCreated(event: unknown): Promise<void> {
-  void event;
+  const issueKey = keyOf(event);
+  if (!issueKey) return;
+  const deps = await createForgeDeps();
+  await scanIssue(deps, issueKey);
 }
 
-/** `avi:jira:updated:issue` — pièces jointes, champs texte, déplacement de projet. */
+/**
+ * `avi:jira:updated:issue` — pièces jointes ajoutées, champs texte modifiés,
+ * déplacement de projet. Le fil entier est réexaminé (§22) : `scanIssue` est
+ * idempotent, les identifiants de constat sont stables.
+ */
 export async function issueUpdated(event: unknown): Promise<void> {
-  void event;
+  const issueKey = keyOf(event);
+  if (!issueKey) return;
+  const deps = await createForgeDeps();
+  await scanIssue(deps, issueKey);
 }
 
-/** `avi:jira:created:comment` — le fil entier est réexaminé (§22). */
+/** `avi:jira:created:comment` — un commentaire peut porter la moitié d'une charge. */
 export async function commentCreated(event: unknown): Promise<void> {
-  void event;
+  const issueKey = keyOf(event);
+  if (!issueKey) return;
+  const deps = await createForgeDeps();
+  await scanIssue(deps, issueKey);
 }
 
-/** `avi:jira:updated:comment` — visibilité modifiée, texte édité. */
+/** `avi:jira:updated:comment` — visibilité modifiée ou texte édité. */
 export async function commentUpdated(event: unknown): Promise<void> {
-  void event;
+  const issueKey = keyOf(event);
+  if (!issueKey) return;
+  const deps = await createForgeDeps();
+  await scanIssue(deps, issueKey);
 }
 
-/** `avi:jira:created:issuelink` — hérédité vers le ticket lié ou cloné (§12). */
+/**
+ * `avi:jira:created:issuelink` — l'origine suit le texte (§12) : un bug créé à
+ * partir d'une demande hérite de son niveau le plus bas et de ses constats.
+ * Le développeur voit d'où vient la description.
+ */
 export async function issueLinkCreated(event: unknown): Promise<void> {
-  void event;
+  const source = eventSourceIssueKey(event);
+  const target = eventLinkedIssueKey(event);
+  if (!source || !target) return;
+  const deps = await createForgeDeps();
+  const now = deps.clock.now();
+
+  const sourceState = await stateOf(deps, source);
+  if (!sourceState) return;
+  const findings = (await deps.store.findings.byIssue(sourceState.issueId)).filter((f) => f.status === 'open');
+  const relation = (eventLinkType(event) ?? '').toLowerCase().includes('clone') ? 'clone' : 'link';
+  const result = inherit({
+    sourceIssueKey: source,
+    sourceTrustLevel: sourceState.trustLevel,
+    targetIssueKey: target,
+    relation,
+    findings,
+  });
+
+  const targetState = await stateOf(deps, target);
+  if (targetState) {
+    await deps.store.states.put({
+      ...targetState,
+      trustLevel: result.trustLevel,
+      inheritedFrom: source,
+      updatedAt: now,
+    });
+  }
+  await deps.store.events.append('inherit', targetState?.issueId ?? null, {
+    source,
+    target,
+    relation,
+    trust: result.trustLevel,
+    carried: result.carriedFindings,
+  });
+  if (result.carriedFindings > 0) {
+    await deps.jira.addInternalNote(target, result.note);
+  }
+}
+
+/** État d'un ticket par sa clé : la table est indexée par identifiant interne. */
+async function stateOf(deps: Awaited<ReturnType<typeof createForgeDeps>>, issueKey: string) {
+  const issue = await deps.jira.getIssue(issueKey);
+  return deps.store.states.get(issue.id);
 }
