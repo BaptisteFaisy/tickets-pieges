@@ -279,7 +279,7 @@ export function ToggleField({
       name={name}
       label={label}
       isChecked={checked}
-      onChange={(event) => onChange(event.target.checked)}
+      onChange={(event) => onChange(Boolean(event.target.checked))}
     />
   );
 }
