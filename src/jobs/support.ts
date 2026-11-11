@@ -39,11 +39,11 @@ import { contentHash } from '../core/hashing';
 // ------------------------------------------------------------------- contrats
 
 /** Message de la file `pieges-c3` : ce qu'il faut pour retrouver le segment. */
-export interface C3Message {
+export type C3Message = {
   issueId: string;
   segmentId: string;
   attempt?: number;
-}
+};
 
 /** Tout ce dont un point d'entrée (§18) a besoin pour travailler. */
 export interface JobsDeps {
