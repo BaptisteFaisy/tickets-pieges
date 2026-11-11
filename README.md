@@ -4,6 +4,12 @@
 > origin, is examined on arrival, and reaches an AI only framed as data;
 > whatever an AI is about to send back out goes through a gate.
 
+> **Live demo, no install, no account, nothing leaves your browser:**
+> <https://baptistefaisy.github.io/tickets-pieges/> — the app's own detection code,
+> compiled for the browser: pick one of the 38 built-in sample requests (or paste
+> your own text) and watch origin, layers C1/C2/C4, findings, suspicion level,
+> mode and framing happen. French/English toggle. See [`docs/SITE.md`](docs/SITE.md).
+
 Atlassian Forge app · Codegeist 2026 · category **Apps for Business Teams**
 (customer support, IT). Full specification: [`docs/CAHIER-DES-CHARGES.md`](docs/CAHIER-DES-CHARGES.md)
 (French, the working language of this repo). English submission notes:
@@ -112,6 +118,7 @@ docs/                   spec, architecture, method, validations, judges, video
 
 ```bash
 npm ci
+node tools/build-site.mjs   # build the public demo site into dist/site/
 npm run typecheck     # tsc --noEmit, strict
 npm test              # vitest, no network, no Atlassian site needed
 npm run limits        # files < 500 lines, functions < 50 lines
