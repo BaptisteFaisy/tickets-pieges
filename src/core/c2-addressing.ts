@@ -18,9 +18,19 @@
  * catalogue (`catalog/detection-c2.ts`), donc neutre par construction.
  */
 import { t } from './i18n';
+import { DE_REPORT_WORDS, DE_SEND_VERBS, lexiconDe } from './lexicon-de';
 import { EN_REPORT_WORDS, EN_SEND_VERBS, lexiconEn } from './lexicon-en';
+import { ES_REPORT_WORDS, ES_SEND_VERBS, lexiconEs } from './lexicon-es';
 import { FR_REPORT_WORDS, FR_SEND_VERBS, lexiconFr } from './lexicon-fr';
+import { IT_REPORT_WORDS, IT_SEND_VERBS, lexiconIt } from './lexicon-it';
+import { NL_REPORT_WORDS, NL_SEND_VERBS, lexiconNl } from './lexicon-nl';
+import { PT_REPORT_WORDS, PT_SEND_VERBS, lexiconPt } from './lexicon-pt';
+import { detectLanguage } from './langues';
+import type { LexiconLanguage } from './langues';
 import type { FindingKind, Language, LayerHit } from './types';
+
+/** Langues scannables par C2 : fr/en du tronc + les cinq lexiques de ce lot. */
+type ScanLanguage = Language | LexiconLanguage;
 
 // ------------------------------------------------------------------- contrats
 
@@ -42,7 +52,7 @@ export interface HitPattern {
 
 /** Table de motifs d'une langue. */
 export interface C2Lexicon {
-  language: Language;
+  language: ScanLanguage;
   patterns: readonly HitPattern[];
 }
 
@@ -50,8 +60,10 @@ export interface C2Lexicon {
 export interface C2Options {
   /** Restreint la détection à une langue (par défaut : français **et** anglais). */
   language?: Language;
-  /** Idem, sous forme de liste. */
-  languages?: readonly Language[];
+  /** Idem, sous forme de liste (peut inclure es/de/pt/it/nl). */
+  languages?: readonly ScanLanguage[];
+  /** Détecte la langue du texte et scanne ce seul lexique (§2, §3). */
+  autoLanguage?: boolean;
   /** Formules à ignorer du projet (§14) : un passage couvert ne lève rien. */
   ignoredPhrases?: readonly string[];
   /** Variante branchée sur `trust-rules.ts` du lot Origine, si fusionné. */
@@ -64,9 +76,33 @@ export interface C2Options {
 
 // ------------------------------------------------------------------ constantes
 
-const LEXICONS: Record<Language, C2Lexicon> = { fr: lexiconFr, en: lexiconEn };
-const SEND_VERBS: Record<Language, RegExp> = { fr: FR_SEND_VERBS, en: EN_SEND_VERBS };
-const REPORT_WORDS: Record<Language, RegExp> = { fr: FR_REPORT_WORDS, en: EN_REPORT_WORDS };
+const LEXICONS: Record<ScanLanguage, C2Lexicon> = {
+  fr: lexiconFr,
+  en: lexiconEn,
+  es: lexiconEs,
+  de: lexiconDe,
+  pt: lexiconPt,
+  it: lexiconIt,
+  nl: lexiconNl,
+};
+const SEND_VERBS: Record<ScanLanguage, RegExp> = {
+  fr: FR_SEND_VERBS,
+  en: EN_SEND_VERBS,
+  es: ES_SEND_VERBS,
+  de: DE_SEND_VERBS,
+  pt: PT_SEND_VERBS,
+  it: IT_SEND_VERBS,
+  nl: NL_SEND_VERBS,
+};
+const REPORT_WORDS: Record<ScanLanguage, RegExp> = {
+  fr: FR_REPORT_WORDS,
+  en: EN_REPORT_WORDS,
+  es: ES_REPORT_WORDS,
+  de: DE_REPORT_WORDS,
+  pt: PT_REPORT_WORDS,
+  it: IT_REPORT_WORDS,
+  nl: NL_REPORT_WORDS,
+};
 
 const MAX_TEXT = 20_000;
 const MAX_HITS = 40;
@@ -125,7 +161,7 @@ function originalPos(folded: Folded, position: number, fallback: number): number
 interface Candidate {
   ruleId: string;
   kind: FindingKind;
-  language: Language;
+  language: ScanLanguage;
   startPos: number;
   endPos: number;
   confidence: number;
@@ -150,14 +186,15 @@ function sentenceAround(text: string, start: number, end: number): string {
  * « Je vous signale une faille » en tête de message vaut pour tout le message.
  * Le signalement ne supprime pas le constat — il en mesure la confiance.
  */
-function looksReported(text: string, start: number, end: number, language: Language): boolean {
+function looksReported(text: string, start: number, end: number, language: ScanLanguage): boolean {
   const window = sentenceAround(text, start, end);
   if (/(?:^|\n)\s*>/.test(window)) return true;
   // Une adresse contient souvent « example » ou « doc » : elle ne dit rien du
   // propos de l'auteur, on la retire avant de chercher des mots de signalement.
   const prose = foldText(`${window} ${text}`).text.replace(/\S*:\/\/\S*|\bwww\.\S*|\S*@\S*/g, ' ');
-  const other: Language = language === 'fr' ? 'en' : 'fr';
-  return REPORT_WORDS[language].test(prose) || REPORT_WORDS[other].test(prose);
+  const langs: ScanLanguage[] =
+    language === 'fr' ? ['fr', 'en'] : language === 'en' ? ['en', 'fr'] : [language, 'fr', 'en'];
+  return langs.some((lang) => REPORT_WORDS[lang].test(prose));
 }
 
 /** Une URL banale n'est retenue que si quelque chose l'accompagne (§10). */
@@ -277,12 +314,17 @@ function excerptOf(raw: string, candidate: Candidate): string {
   return text.length > EXCERPT_MAX ? `${text.slice(0, EXCERPT_MAX - 1)}…` : text;
 }
 
+/** Langue du catalogue pour un résumé : fr pour le français, en sinon (§21). */
+function summaryLanguage(language: ScanLanguage): Language {
+  return language === 'fr' ? 'fr' : 'en';
+}
+
 /** Résumé neutre, dans la langue du motif (§6, §21). */
 function summaryOf(candidate: Candidate): string {
   const key = candidate.reported
     ? `c2.summary.reported.${candidate.ruleId}`
     : `c2.summary.${candidate.ruleId}`;
-  return t(candidate.language, key);
+  return t(summaryLanguage(candidate.language), key);
 }
 
 /** Fabrique un `LayerHit` C2 à partir d'un candidat retenu. */
@@ -301,10 +343,14 @@ function toHit(raw: string, candidate: Candidate, options: C2Options): LayerHit 
 
 // -------------------------------------------------------------------- l'entrée
 
-/** Langues effectivement interrogées (défaut : fr + en, §21). */
-function languagesOf(options: C2Options): Language[] {
+/** Langues effectivement interrogées (défaut : fr + en ; auto : langue détectée). */
+function languagesOf(options: C2Options, text: string): ScanLanguage[] {
   if (options.languages && options.languages.length > 0) return [...options.languages];
   if (options.language) return [options.language];
+  if (options.autoLanguage) {
+    const detected = detectLanguage(text);
+    if (detected !== 'other') return [detected];
+  }
   return ['fr', 'en'];
 }
 
@@ -320,7 +366,7 @@ export function detectAddressing(text: string, options: C2Options = {}): LayerHi
   const raw = text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) : text;
   const folded = foldText(raw);
   const ignored = ignoredRanges(options, folded, raw);
-  const raw_candidates = languagesOf(options).flatMap((language) =>
+  const raw_candidates = languagesOf(options, raw).flatMap((language) =>
     scanLexicon(LEXICONS[language], folded),
   );
   const kept: Candidate[] = [];
@@ -338,7 +384,7 @@ export function detectAddressing(text: string, options: C2Options = {}): LayerHi
 }
 
 /** Motifs d'une famille, pour l'écran de revue et la mesure de précision (§14). */
-export function c2Patterns(language: Language): readonly HitPattern[] {
+export function c2Patterns(language: ScanLanguage): readonly HitPattern[] {
   return LEXICONS[language].patterns;
 }
 
