@@ -67,6 +67,22 @@ export const SUSPICION_ORDER =
 
 type Record_ = Record<string, unknown>;
 
+/** Valeur de WHERE avec opérateur : `{ op: '>=', value: x }` (liste blanche). */
+export interface SqlOp {
+  op: '>=' | '<=' | '>' | '<' | '!=';
+  value: unknown;
+}
+
+const ALLOWED_OPS: readonly string[] = ['>=', '<=', '>', '<', '!='];
+
+function isOp(value: unknown): value is SqlOp {
+  if (typeof value !== 'object' || value === null || !('op' in value)) return false;
+  if (!ALLOWED_OPS.includes(String((value as SqlOp).op))) {
+    throw new Error(`opérateur SQL refusé : ${String((value as SqlOp).op)}`);
+  }
+  return true;
+}
+
 function columnsOf(row: Record_): string[] {
   return Object.keys(row);
 }
@@ -82,6 +98,9 @@ function whereClause(where: Record_): { sql: string; params: unknown[] } {
   for (const [column, value] of Object.entries(where)) {
     if (value === null) {
       parts.push(`${column} IS NULL`);
+    } else if (isOp(value)) {
+      parts.push(`${column} ${value.op} ?`);
+      params.push(value.value);
     } else {
       parts.push(`${column} = ?`);
       params.push(value);
