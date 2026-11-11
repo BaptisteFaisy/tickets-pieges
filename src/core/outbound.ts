@@ -22,6 +22,10 @@ import type { Language, OutboundAction, OutboundContext, OutboundHit, OutboundKi
 import { shingleOverlap, shingles } from './hashing';
 import { clamp01 } from './findings';
 import { t } from './i18n';
+import { detectDlp } from './dlp';
+import type { DlpFinding } from './dlp';
+import { redact } from './redaction';
+import type { RedactionTable } from './redaction';
 
 /** Au-delà, une requête d'URL est « anormalement longue » (§10). */
 export const MAX_URL_QUERY = 300;
@@ -45,6 +49,24 @@ export interface OutboundOptions {
   stage?: OutboundStage;
   language?: Language;
   now?: string;
+}
+
+/**
+ * Verdict du sas enrichi par les contrôles des lots DLP (#33/#34/#35/#37).
+ *
+ * `OutboundVerdict` reste la forme minimale consommée par le reste du produit ;
+ * ces champs supplémentaires sont ajoutés ici, sans toucher au tronc — à
+ * reprendre dans `types-flow.ts` quand le lot sera fusionné.
+ */
+export interface OutboundDlpResult extends OutboundVerdict {
+  /** Données personnelles relevées, avec leur `ruleId` et leur confiance. */
+  dlp: DlpFinding[];
+  /** Texte masqué, prêt à être rendu ; `null` si rien n'a été masqué. */
+  redactedText: string | null;
+  /** Table de masquage à conserver hors du ticket. */
+  redactionTable: RedactionTable | null;
+  /** `true` : une relecture humaine ne suffit pas, il en faut deux (#37). */
+  requiresDoubleReview: boolean;
 }
 
 const URL_PATTERN = /https?:\/\/[^\s)"'<>\]]+/g;
@@ -79,9 +101,27 @@ export function findOtherOrganizations(text: string, context: OutboundContext, l
     .map((name) => hit('other-organization', name, 0.9, language, t(language, 'outbound.other-organization')));
 }
 
-/** Adresses web inconnues ou à requête anormalement longue (§10). */
+/** Hôte d'une adresse, sans schéma ni chemin ; `null` si illisible. */
+export function hostOf(url: string): string | null {
+  const withoutScheme = url.replace(/^https?:\/\//i, '');
+  const host = withoutScheme.split(/[/?#]/)[0];
+  return host && host.length > 0 ? host.toLowerCase() : null;
+}
+
+/** #33 — liste de domaines autorisés, déduite des adresses connues du contexte. */
+export function authorizedDomains(context: OutboundContext): string[] {
+  return [...new Set((context.knownUrls ?? []).map((url) => hostOf(url)).filter((h): h is string => h !== null))];
+}
+
+/** Un hôte est autorisé s'il égale un domaine de la liste ou en est un sous-domaine. */
+export function isAuthorizedHost(host: string, allowed: string[]): boolean {
+  const h = host.toLowerCase();
+  return allowed.some((domain) => h === domain || h.endsWith(`.${domain}`));
+}
+
+/** Adresses web hors liste autorisée ou à requête anormalement longue (§10, #33). */
 export function findUrls(text: string, context: OutboundContext, language: Language): OutboundHit[] {
-  const known = new Set((context.knownUrls ?? []).map((url) => hostOf(url)).filter(Boolean));
+  const allowed = authorizedDomains(context);
   const hits: OutboundHit[] = [];
   for (const url of text.match(URL_PATTERN) ?? []) {
     const query = url.slice(url.indexOf('?') + 1);
@@ -89,18 +129,11 @@ export function findUrls(text: string, context: OutboundContext, language: Langu
     const host = hostOf(url);
     if (longQuery) {
       hits.push(hit('long-query-url', url, 0.95, language, t(language, 'outbound.long-query', { chars: query.length })));
-    } else if (host && !known.has(host)) {
+    } else if (host && !isAuthorizedHost(host, allowed)) {
       hits.push(hit('unknown-url', url, 0.75, language, t(language, 'outbound.unknown-url', { host })));
     }
   }
   return hits;
-}
-
-/** Hôte d'une adresse, sans schéma ni chemin ; `null` si illisible. */
-export function hostOf(url: string): string | null {
-  const withoutScheme = url.replace(/^https?:\/\//i, '');
-  const host = withoutScheme.split(/[/?#]/)[0];
-  return host && host.length > 0 ? host.toLowerCase() : null;
 }
 
 /**
@@ -135,6 +168,26 @@ export function findOffTopic(text: string, context: OutboundContext, language: L
   return [hit('off-topic', text.slice(0, 80), 0.5, language, t(language, 'outbound.off-topic', { overlap: overlap.toFixed(2) }))];
 }
 
+/** Clé de catalogue du libellé d'un motif DLP, dérivée du `ruleId`. */
+function dlpLabelKey(ruleId: DlpFinding['ruleId']): string {
+  return `outbound.dlp.${ruleId}`;
+}
+
+/** Les données personnelles relevées, rendues comme éléments du sas (#34/#35). */
+export function findDlpHits(findings: DlpFinding[], language: Language): OutboundHit[] {
+  return findings.map((finding) =>
+    hit('other-customer-data', finding.excerpt, finding.confidence, language, t(language, dlpLabelKey(finding.ruleId))),
+  );
+}
+
+/**
+ * #37 — une réponse vers un domaine inconnu, ou qui contient une donnée
+ * personnelle, n'est pas confiée à une seule relecture : il en faut deux.
+ */
+export function requiresDoubleReview(hits: OutboundHit[], dlp: DlpFinding[]): boolean {
+  return dlp.length > 0 || hits.some((item) => item.kind === 'unknown-url');
+}
+
 /** Décision du sas : ce qui est retenu, et comment (§10). */
 export function decide(hits: OutboundHit[], context: OutboundContext, stage: OutboundStage): { allowed: boolean; action: OutboundAction } {
   if (hits.length === 0) return { allowed: true, action: 'allow' };
@@ -149,24 +202,31 @@ export function decide(hits: OutboundHit[], context: OutboundContext, stage: Out
   return { allowed: false, action: context.strict || context.taintedSession ? 'convert-to-internal' : 'hold-for-review' };
 }
 
-/** Contrôle d'un texte destiné à sortir (§10). Ne jette jamais. */
-export function checkOutbound(text: string, context: OutboundContext, options: OutboundOptions = {}): OutboundVerdict {
+/** Contrôle d'un texte destiné à sortir (§10, #33/#34/#35/#37). Ne jette jamais. */
+export function checkOutbound(text: string, context: OutboundContext, options: OutboundOptions = {}): OutboundDlpResult {
   const language = options.language ?? 'fr';
   const stage = options.stage ?? 'before';
+  const dlp = detectDlp(text);
   const hits = [
     ...findOtherOrganizations(text, context, language),
     ...findOtherIssueKeys(text, context, language),
     ...findUrls(text, context, language),
     ...findEncodedBlocks(text, language),
     ...findOffTopic(text, context, language),
+    ...findDlpHits(dlp, language),
   ];
   const decision = decide(hits, context, stage);
+  const masked = dlp.length > 0 ? redact(text, dlp) : null;
   return {
     issueKey: context.issueKey,
     allowed: decision.allowed,
     action: decision.action,
     hits,
     checkedAt: options.now ?? new Date(0).toISOString(),
+    dlp,
+    redactedText: masked?.text ?? null,
+    redactionTable: masked?.table ?? null,
+    requiresDoubleReview: requiresDoubleReview(hits, dlp),
   };
 }
 
