@@ -44,7 +44,7 @@ const imperatives: HitPattern[] = [
 
 /** Famille C2-02 — changement de rôle ou de mode. */
 const roleSwitches: HitPattern[] = [
-  { ruleId: 'C2-02', kind: 'role-switch', confidence: 0.85, source: String.raw`\b(?:sei|ora\s+sei|sei\s+ora|d'ora\s+in\s+poi)\b[^.!?\n]{0,20}` },
+  { ruleId: 'C2-02', kind: 'role-switch', confidence: 0.85, source: String.raw`\b(?:ora\s+sei|sei\s+ora|d'ora\s+in\s+poi|sei\s+adesso)\b` },
   { ruleId: 'C2-02', kind: 'role-switch', confidence: 0.82, source: String.raw`\b(?:nuovo|nuova)\s+(?:ruolo|personaggio|personalita|profilo|identita)\b` },
   { ruleId: 'C2-02', kind: 'role-switch', confidence: 0.88, source: String.raw`\bmodalita\s+(?:sviluppatore|developer|dan|senza\s+restrizioni|senza\s+filtro)\b` },
   {

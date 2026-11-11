@@ -8,11 +8,15 @@
  *  - C2-04 verbe d'outil (Atlassian, recherche, export) ;
  *  - C2-05 adresse web jointe à un envoi de données (§10).
  *
- * Un seul moteur, deux tables de motifs (`lexicon-fr.ts`, `lexicon-en.ts`) : la
- * logique ne se duplique pas par langue. Les motifs sont évalués sur un texte
- * **plié** (minuscules, diacritiques retirés, guillemets typographiques
- * ramenés à l'ASCII), avec une table de correspondance qui restitue les
- * positions d'origine — d'où `startPos` / `endPos` exacts sur le texte reçu.
+ * Un seul moteur, sept tables de motifs (`lexicon-fr.ts`, `lexicon-en.ts`,
+ * `lexicon-es.ts`, `lexicon-de.ts`, `lexicon-pt.ts`, `lexicon-it.ts`,
+ * `lexicon-nl.ts`) : la logique ne se duplique pas par langue. Les familles
+ * universelles (marqueur de système, adresse web, identifiants d'outils) sont
+ * exportées depuis `lexicon-es.ts` et **réutilisées** par les autres lexiques.
+ * Les motifs sont évalués sur un texte **plié** (minuscules, diacritiques
+ * retirés, guillemets typographiques ramenés à l'ASCII), avec une table de
+ * correspondance qui restitue les positions d'origine — d'où `startPos` /
+ * `endPos` exacts sur le texte reçu.
  *
  * Le résumé (`askSummary`) n'est jamais recopié du texte : il vient du
  * catalogue (`catalog/detection-c2.ts`), donc neutre par construction.

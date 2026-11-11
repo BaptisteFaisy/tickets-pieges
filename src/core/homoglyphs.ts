@@ -159,7 +159,7 @@ export interface Lookalike {
   kind: 'confusable' | 'punycode';
 }
 
-const HOST_RE = /\b(?:xn--)?[a-z0-9\u0080-\uFFFF][a-z0-9\u0080-\uFFFF.-]*\.[a-z\u0080-\uFFFF]{2,}\b/gi;
+const HOST_STRIP = /[^a-zA-Z0-9\u0080-\uFFFF.-]/g;
 
 /**
  * Domaines d'un texte dont la forme visible dévie de la forme ASCII lue :
@@ -167,8 +167,9 @@ const HOST_RE = /\b(?:xn--)?[a-z0-9\u0080-\uFFFF][a-z0-9\u0080-\uFFFF.-]*\.[a-z\
  */
 export function findLookalikes(text: string): Lookalike[] {
   const found: Lookalike[] = [];
-  for (const [raw] of text.matchAll(HOST_RE)) {
-    const host = raw.toLowerCase();
+  for (const token of text.split(/\s+/)) {
+    const host = token.replace(HOST_STRIP, '').toLowerCase();
+    if (host.length < 3) continue;
     if (hasConfusable(host)) {
       found.push({ host, normalized: foldConfusables(host), kind: 'confusable' });
     } else if (host.includes('xn--')) {

@@ -29,13 +29,12 @@ const STOPWORDS: Record<DetectionLanguage, readonly string[]> = {
   nl: ['de', 'het', 'een', 'en', 'ik', 'je', 'u', 'we', 'met', 'voor', 'dank', 'hallo', 'mijn', 'niet', 'is', 'van', 'om'],
 };
 
-/** Référentiel réduit de lettres propres à une langue (indice, pas un verdict). */
-const LETTER_MARKS: Record<LexiconLanguage, RegExp> = {
+/** Référentiel réduit de lettres propres à une langue (indice faible, facultatif). */
+const LETTER_MARKS: Record<string, RegExp> = {
   es: /[ñ¿¡]/,
   de: /[ßäöü]/,
   pt: /[ãõ]/,
-  it: /[àìòù]/,
-  nl: /[ij]/,
+  nl: /ij/,
 };
 
 /** Découpe un texte en mots pliés et minuscules. */
@@ -55,7 +54,7 @@ function score(language: DetectionLanguage, words: string[]): number {
   }
   if (language !== 'fr' && language !== 'en') {
     const mark = LETTER_MARKS[language];
-    if (mark.test(words.join(' '))) total += 1;
+    if (mark?.test(words.join(' '))) total += 1;
   }
   return total;
 }
