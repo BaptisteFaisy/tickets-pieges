@@ -27,7 +27,15 @@ import {
 import type { FramingSegment } from '../core/framing';
 import type { JsonPayload } from './result';
 import { createMemoryStore } from '../platform/memory';
-import type { Clock, IssueStateRow, JiraIssueView, JiraPort, SegmentRow, Store } from '../platform/schema';
+import type {
+  Clock,
+  IssueStateRow,
+  JiraIssueView,
+  JiraPort,
+  SegmentRow,
+  Store,
+  VerdictRow,
+} from '../platform/schema';
 
 /** Ce dont un outil a besoin pour travailler. */
 export interface Services {
@@ -153,17 +161,22 @@ export async function loadBundle(issueKey: string): Promise<IssueBundle> {
   return { issue, settings, language: settings.language, segments, findings, verdicts, state, now: nowIso() };
 }
 
-/** Verdicts d'une liste de constats (§14). */
-export async function collectVerdicts(findingIds: string[]): Promise<Verdict[]> {
-  const { store } = services();
-  const rows = await Promise.all(findingIds.map((id) => store.verdicts.byFinding(id)));
-  return rows.flat().map((row) => ({
+/** Une ligne de verdict telle que le domaine la lit (§14). */
+export function verdictOf(row: VerdictRow): Verdict {
+  return {
     findingId: row.findingId,
     reviewerAccountId: row.reviewerAccountId,
     decision: row.decision,
     reason: row.reason ?? undefined,
     at: row.at,
-  }));
+  };
+}
+
+/** Verdicts d'une liste de constats (§14). */
+export async function collectVerdicts(findingIds: string[]): Promise<Verdict[]> {
+  const { store } = services();
+  const rows = await Promise.all(findingIds.map((id) => store.verdicts.byFinding(id)));
+  return rows.flat().map(verdictOf);
 }
 
 /** Tous les états de ticket connus, du plus suspect au moins suspect (§17.2). */
