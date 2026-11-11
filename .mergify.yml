@@ -1,0 +1,54 @@
+# File de merge Mergify — CI self-hosted (R630), dépôt Tickets piégés.
+#
+# Trois checks requis, ceux du ruleset de `main` : `ci` (types, tests vitest,
+# limites de taille, manifeste Forge, sanity docs et tests des gardes,
+# `.github/workflows/ci.yml`), `ci-budget` (garde-fou des 5 min par job,
+# règle user) et `couche0` (périmètre déclaré dans `## Scope` + motifs
+# interdits dans le diff). Mergify est le seul pilote de merge : ni les
+# gardes ni les agents ne mergent quoi que ce soit.
+# Labels de priorité inline `urgent` / `priority-low`, comme sur les autres
+# dépôts de l'atelier (structure reprise de BaptisteFaisy/duello).
+queue_rules:
+  - name: default
+    queue_conditions:
+      - check-success = ci
+      - check-success = ci-budget
+      - check-success = couche0
+      - -conflict
+      - -draft
+      - base = main
+    batch_size:
+      min: 1
+      max: 3
+    batch_max_wait_time: "30 seconds"
+    max_checks_retries: 1
+    # Squash et non rebase : une PR = un commit sur main (historique lisible).
+    # En rebase, GitHub rejoue chaque commit tel quel et refuse le merge
+    # (« GitHub cannot rebase the pull request ») dès qu'un commit antérieur à
+    # la fusion du branche de base ne s'applique plus.
+    merge_method: squash
+    # Mise à jour par merge de main : jamais de réécriture (force-push) des
+    # branches de PR, et pas d'échec sur les PR déjà fusionnées.
+    update_method: merge
+
+priority_rules:
+  - name: urgent
+    conditions:
+      - label = urgent
+    priority: high
+  - name: priority-low
+    conditions:
+      - label = priority-low
+    priority: low
+
+merge_queue:
+  # 4 workers self-hosted (R630, label tickets-pieges-worker, runners
+  # r630-tickets-pieges-01..04) : la spéculation Mergify peut occuper les
+  # quatre sans affamer la CI des PR d'auteur.
+  max_parallel_checks: 4
+
+# Auto-queue natif (produit Merge Queue) : évite de dépendre du produit
+# « Workflow Automation » (pull_request_rules), constaté désactivé sur les
+# dépôts de l'atelier.
+merge_protections_settings:
+  auto_merge_conditions: true
