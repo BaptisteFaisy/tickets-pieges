@@ -25,7 +25,6 @@ import type {
   Language,
   OutboundAction,
   SegmentSource,
-  ToolResult,
   Verdict,
 } from '../core/types';
 import type { CanaryHitRow, CanaryRow, IssueStateRow } from '../platform/schema';
@@ -34,7 +33,6 @@ import {
   optionalText,
   requireText,
   run,
-  type JsonPayload,
   type Tool,
 } from './result';
 import {
@@ -455,6 +453,3 @@ function canaryWarning(): string {
 function indexWarning(): string {
   return 'seules les demandes déjà indexées par l’app entrent dans le rapport';
 }
-
-/** Type public d'un outil de lecture : pratique pour `actions.ts` et les tests. */
-export type ReadToolResult = ToolResult<unknown>;
