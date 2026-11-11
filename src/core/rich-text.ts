@@ -392,7 +392,8 @@ export function flattenHtml(html: string): RichTextDocument {
   const root: HtmlFrame = { name: '#root', code: false };
   const frames: HtmlFrame[] = [root];
   for (const token of html.match(/<!--[\s\S]*?-->|<[^>]*>|[^<]+/g) ?? []) {
-    if (!token.startsWith('<') || token.startsWith('<!--')) {
+    if (token.startsWith('<!--')) continue;
+    if (!token.startsWith('<')) {
       htmlText(token, frames[frames.length - 1] ?? root, state);
       continue;
     }
