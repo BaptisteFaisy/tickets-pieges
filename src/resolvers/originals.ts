@@ -30,33 +30,32 @@ async function issueKeyOf(deps: ResolverDeps, issueId: string): Promise<string> 
   return state?.issueKey ?? issueId;
 }
 
-/** Fabrique les gestionnaires des originaux conservés. */
-export function originalsResolvers(deps: ResolverDeps): Record<string, UiHandler> {
-  const { store, clock } = deps;
-  const forbidden = (): ReturnType<typeof fail> => fail(t('fr', 'ui.originals.forbidden'));
+function forbidden(): ReturnType<typeof fail> {
+  return fail(t('fr', 'ui.originals.forbidden'));
+}
 
-  const listOriginals: UiHandler = async (_payload, context) => {
+/** `listOriginals` : les originaux en attente, sans leur contenu. */
+function makeListOriginals(deps: ResolverDeps): UiHandler {
+  const { store } = deps;
+  return async (_payload, context) => {
     if (!isSecurity(deps, context)) return forbidden();
     try {
       const rows = await store.originals.pending();
       const views: OriginalView[] = [];
       for (const row of rows) {
-        views.push({
-          id: row.id,
-          issueKey: await issueKeyOf(deps, row.issueId),
-          segmentId: row.segmentId,
-          storedAt: row.storedAt,
-          restoredAt: row.restoredAt,
-          findingIds: row.findingIds,
-        });
+        views.push(await toView(deps, row, false));
       }
       return ok(views);
     } catch {
       return fail(t('fr', 'ui.error.generic'));
     }
   };
+}
 
-  const getOriginal: UiHandler = async (payload, context) => {
+/** `getOriginal` : un original, contenu rendu inerte (§17.6). */
+function makeGetOriginal(deps: ResolverDeps): UiHandler {
+  const { store } = deps;
+  return async (payload, context) => {
     if (!isSecurity(deps, context)) return forbidden();
     const id = payloadText(payload, 'id');
     if (!id) return fail(t('fr', 'ui.error.missing', { name: 'id' }));
@@ -68,39 +67,53 @@ export function originalsResolvers(deps: ResolverDeps): Record<string, UiHandler
       return fail(t('fr', 'ui.error.generic'));
     }
   };
+}
 
-  const restoreOriginal: UiHandler = async (payload, context) => {
+/** `restoreOriginal` : restauration journalisée, constats repassés à « restored ». */
+function makeRestoreOriginal(deps: ResolverDeps): UiHandler {
+  const { store, clock } = deps;
+  return async (payload, context) => {
     if (!isSecurity(deps, context)) return forbidden();
     const id = payloadText(payload, 'id');
     if (!id) return fail(t('fr', 'ui.error.missing', { name: 'id' }));
     try {
       const row = await store.originals.byId(id);
       if (!row) return fail(t('fr', 'ui.error.notFound', { name: id }));
-      const now = clock.now();
-      const by = accountIdOf(context) ?? 'security';
-      const issueKey = await issueKeyOf(deps, row.issueId);
-      const { journal } = restoreText(row.content, {
-        issueKey,
-        segmentId: row.segmentId,
-        originalId: row.id,
-        reason: payloadText(payload, 'reason') ?? 'ui',
-        at: now,
-        by,
-      });
-      await store.originals.markRestored(row.id, now);
-      for (const findingId of row.findingIds) {
-        await store.findings.setStatus(findingId, 'restored');
-      }
-      for (const entry of journal) {
-        await store.events.append(entry.kind, row.issueId, entry.detail);
-      }
+      await restoreRow(deps, row, payloadText(payload, 'reason') ?? 'ui', accountIdOf(context) ?? 'security', clock.now());
       return ok({ id });
     } catch {
       return fail(t('fr', 'ui.error.generic'));
     }
   };
+}
 
-  return { listOriginals, getOriginal, restoreOriginal };
+async function restoreRow(deps: ResolverDeps, row: OriginalRow, reason: string, by: string, now: string): Promise<void> {
+  const { store } = deps;
+  const issueKey = await issueKeyOf(deps, row.issueId);
+  const { journal } = restoreText(row.content, {
+    issueKey,
+    segmentId: row.segmentId,
+    originalId: row.id,
+    reason,
+    at: now,
+    by,
+  });
+  await store.originals.markRestored(row.id, now);
+  for (const findingId of row.findingIds) {
+    await store.findings.setStatus(findingId, 'restored');
+  }
+  for (const entry of journal) {
+    await store.events.append(entry.kind, row.issueId, entry.detail);
+  }
+}
+
+/** Fabrique les gestionnaires des originaux conservés. */
+export function originalsResolvers(deps: ResolverDeps): Record<string, UiHandler> {
+  return {
+    listOriginals: makeListOriginals(deps),
+    getOriginal: makeGetOriginal(deps),
+    restoreOriginal: makeRestoreOriginal(deps),
+  };
 }
 
 async function toView(deps: ResolverDeps, row: OriginalRow, withContent: boolean): Promise<OriginalView> {
