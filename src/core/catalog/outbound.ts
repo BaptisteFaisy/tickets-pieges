@@ -1,9 +1,47 @@
-/** Catalogue « sas de sortie » (§10) — propriétaire : lot Sortie. */
+/**
+ * Catalogue « sas de sortie » (§10) — propriétaire : lot Sortie.
+ *
+ * Les textes ici sont ceux qu'un agent ou un humain lit quand une réponse est
+ * retenue : ils disent ce qui a été vu, sans accuser, et rappellent la limite
+ * (§10 : après coup, la notification est peut-être déjà partie).
+ */
 export const outboundCatalog = {
   fr: {
     'outbound.title': 'Sas de sortie',
+    'outbound.other-issue-key': 'la réponse cite la clé d’un autre ticket',
+    'outbound.other-organization': 'la réponse cite le nom d’une autre organisation',
+    'outbound.unknown-url': 'adresse inconnue du site : {host}',
+    'outbound.long-query': 'adresse dont la requête est anormalement longue ({chars} caractères)',
+    'outbound.encoded-block': 'bloc encodé : contenu non lisible directement',
+    'outbound.off-topic': 'réponse sans rapport mesurable avec la demande (recouvrement {overlap})',
+    'outbound.caveat.no-request': 'le texte de la demande n’était pas disponible : le rapport à la demande n’a pas pu être mesuré',
+    'outbound.caveat.no-orgs': 'aucune autre organisation n’a été fournie : les données d’un autre client ne peuvent pas toutes être détectées',
+    'outbound.action.allow': 'rien à signaler : la réponse peut partir',
+    'outbound.action.hold-for-review': 'réponse retenue : relecture humaine nécessaire avant publication',
+    'outbound.action.convert-to-internal': 'réponse repassée en note interne : elle n’est pas visible du client',
+    'outbound.action.alert': 'alerte à la sécurité : le courriel de notification est peut-être déjà parti',
+
+    'draft.needs-review': 'brouillon conservé en note interne : aucune relecture humaine enregistrée',
+    'draft.blocked-by-gate': 'brouillon retenu par le sas : il cite des éléments qui ne devraient pas sortir',
+    'draft.published': 'brouillon publié après relecture humaine et contrôle favorable',
   },
   en: {
     'outbound.title': 'Outbound gate',
+    'outbound.other-issue-key': 'the reply quotes another ticket key',
+    'outbound.other-organization': 'the reply quotes another organization name',
+    'outbound.unknown-url': 'address unknown to this site: {host}',
+    'outbound.long-query': 'address with an unusually long query ({chars} characters)',
+    'outbound.encoded-block': 'encoded block: content not directly readable',
+    'outbound.off-topic': 'reply with no measurable relation to the request (overlap {overlap})',
+    'outbound.caveat.no-request': 'the request text was unavailable: relevance could not be measured',
+    'outbound.caveat.no-orgs': 'no other organization was supplied: other-customer data cannot all be detected',
+    'outbound.action.allow': 'nothing to report: the reply can be sent',
+    'outbound.action.hold-for-review': 'reply held: human review required before publishing',
+    'outbound.action.convert-to-internal': 'reply moved back to an internal note: not visible to the customer',
+    'outbound.action.alert': 'security alerted: the notification email may already have gone out',
+
+    'draft.needs-review': 'draft kept as an internal note: no human review recorded',
+    'draft.blocked-by-gate': 'draft held by the gate: it quotes elements that should not leave',
+    'draft.published': 'draft published after human review and a passing check',
   },
 } satisfies Record<'fr' | 'en', Record<string, string>>;
