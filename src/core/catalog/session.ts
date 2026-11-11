@@ -37,6 +37,12 @@ export const sessionCatalog = {
     'session.decision.loop':
       'Boucle d’agent détectée : l’outil {tool} a été appelé sur {count} tickets différents '
       + 'en {seconds} seconde(s). Les capacités de sortie de cette session sont suspendues.',
+    'session.decision.ask.write-internal':
+      'Commentaire interne dans une session qui a lu du contenu non vérifié ({issueId}) : '
+      + 'ce texte peut être recopié ailleurs. Relis-le avant de l’enregistrer.',
+    'session.decision.ask.export-data':
+      'Export de données dans une session qui a lu du contenu non vérifié ({issueId}) : '
+      + 'confirme le périmètre de l’export avant de le produire.',
 
     'session.token.rejected': 'Jeton de session refusé.',
     'session.token.minted': 'Jeton de session émis pour {sessionRef}.',
@@ -93,6 +99,12 @@ export const sessionCatalog = {
     'session.decision.loop':
       'Agent loop detected: tool {tool} was called on {count} different issues within '
       + '{seconds} second(s). Outbound capabilities of this session are suspended.',
+    'session.decision.ask.write-internal':
+      'Internal comment in a session that read unverified content ({issueId}): this text can be '
+      + 'copied elsewhere. Review it before saving.',
+    'session.decision.ask.export-data':
+      'Data export in a session that read unverified content ({issueId}): confirm the scope of '
+      + 'the export before producing it.',
 
     'session.token.rejected': 'Session token rejected.',
     'session.token.minted': 'Session token issued for {sessionRef}.',
