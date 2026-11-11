@@ -41,8 +41,8 @@ describe('journal à hash chaîné (§50)', () => {
       { payload: 'c', at: NOW },
     ]);
     expect(chain.map((entry) => entry.seq)).toEqual([1, 2, 3]);
-    expect(chain[0].prevHash).toBe('');
-    expect(chain[1].prevHash).toBe(chain[0].hash);
+    expect(chain[0]!.prevHash).toBe('');
+    expect(chain[1]!.prevHash).toBe(chain[0]!.hash);
     expect(verifyChain(chain)).toBe(true);
   });
 
@@ -52,7 +52,7 @@ describe('journal à hash chaîné (§50)', () => {
       { payload: 'b', at: NOW },
     ]);
     const altered = [...chain];
-    altered[1] = { ...chain[1], payload: 'contenu modifié' };
+    altered[1] = { ...chain[1]!, payload: 'contenu modifié' };
     expect(verifyChain(altered)).toBe(false);
   });
 
@@ -62,9 +62,9 @@ describe('journal à hash chaîné (§50)', () => {
       { payload: 'b', at: NOW },
       { payload: 'c', at: NOW },
     ]);
-    const badHash = { ...chain[1], hash: '0'.repeat(64) };
-    expect(verifyChain([chain[0], badHash, chain[2]])).toBe(false);
-    expect(verifyChain([chain[0], chain[2]])).toBe(false);
+    const badHash = { ...chain[1]!, hash: '0'.repeat(64) };
+    expect(verifyChain([chain[0]!, badHash, chain[2]!])).toBe(false);
+    expect(verifyChain([chain[0]!, chain[2]!])).toBe(false);
   });
 
   it('réordonner rompt la chaîne', () => {
@@ -72,7 +72,7 @@ describe('journal à hash chaîné (§50)', () => {
       { payload: 'a', at: NOW },
       { payload: 'b', at: NOW },
     ]);
-    expect(verifyChain([chain[1], chain[0]])).toBe(false);
+    expect(verifyChain([chain[1]!, chain[0]!])).toBe(false);
   });
 
   it('appendEntry chaîne l’empreinte précédente', () => {

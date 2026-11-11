@@ -20,7 +20,7 @@ describe('exercices permanents (#41)', () => {
   it('deux files la même semaine reçoivent des jetons distincts', () => {
     const slots = weeklySchedule('graine-a', QUEUES, ['2026-W46']);
     expect(slots).toHaveLength(2);
-    expect(slots[0].token).not.toBe(slots[1].token);
+    expect(slots[0]!.token).not.toBe(slots[1]!.token);
   });
 
   it('les jetons tournent d’une semaine à l’autre', () => {
