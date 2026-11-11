@@ -74,15 +74,7 @@ async function collectWindow(
   const issueIds = new Set(states.map((state) => state.issueId));
   const findings = (await Promise.all(states.map((state) => store.findings.byIssue(state.issueId)))).flat();
   const findingIds = new Set(findings.map((finding) => finding.id));
-  const verdicts: Verdict[] = (await store.verdicts.since(from))
-    .filter((row) => findingIds.has(row.findingId))
-    .map((row) => ({
-      findingId: row.findingId,
-      reviewerAccountId: row.reviewerAccountId,
-      decision: row.decision,
-      reason: row.reason ?? undefined,
-      at: row.at,
-    }));
+  const verdicts = toVerdicts(await store.verdicts.since(from), findingIds);
   const canaryRows = (await store.canaries.open()).filter((row) => issueIds.has(row.issueId));
   const canaries = canaryRows.map(toCanary);
   const canaryIds = new Set(canaries.map((canary) => canary.id));
@@ -110,6 +102,18 @@ async function collectWindow(
     outboundActions,
     campaigns,
   };
+}
+
+function toVerdicts(rows: { findingId: string; reviewerAccountId: string; decision: Verdict['decision']; reason: string | null; at: string }[], findingIds: Set<string>): Verdict[] {
+  return rows
+    .filter((row) => findingIds.has(row.findingId))
+    .map((row) => ({
+      findingId: row.findingId,
+      reviewerAccountId: row.reviewerAccountId,
+      decision: row.decision,
+      reason: row.reason ?? undefined,
+      at: row.at,
+    }));
 }
 
 /** Fabrique les gestionnaires de la page d'exposition. */
