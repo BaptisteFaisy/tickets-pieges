@@ -25,6 +25,15 @@ function booleanOf(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
 }
 
+/** Niveaux de confiance valides, sans normalisation (T0 ≠ t0) ni doublon. */
+function trustLevelsOf(value: unknown): TrustLevel[] {
+  if (!Array.isArray(value)) return [];
+  const levels = value.filter((level): level is TrustLevel =>
+    typeof level === 'string' && (TRUST_LEVELS as readonly string[]).includes(level),
+  );
+  return [...new Set(levels)];
+}
+
 /** Valide un objet de réglages reçu de l'écran ; `null` si invalide. */
 export function parseSettings(raw: unknown, projectKey: string): ProjectSettings | null {
   if (!isRecord(raw)) return null;
@@ -34,15 +43,13 @@ export function parseSettings(raw: unknown, projectKey: string): ProjectSettings
   const neutralizeFrom = raw['neutralizeFrom'];
   if (typeof neutralizeFrom !== 'string' || !(neutralizeFrom in SUSPICION_RANK)) return null;
   const language = raw['language'] === 'en' ? 'en' : ('fr' as Language);
-  const origins = stringList(raw['neutralizeOrigins']).filter((level): level is TrustLevel =>
-    (TRUST_LEVELS as readonly string[]).includes(level),
-  );
+  const origins = trustLevelsOf(raw['neutralizeOrigins']);
   const domains = stringList(raw['trustedDomains']).map((domain) => normalizeDomain(domain));
   return {
     projectKey,
     mode: mode as ProtectionMode,
     neutralizeFrom: neutralizeFrom as SuspicionLevel,
-    neutralizeOrigins: origins as TrustLevel[],
+    neutralizeOrigins: origins,
     trustedDomains: domains,
     trustedOrganizations: stringList(raw['trustedOrganizations']),
     trustedIntegrations: stringList(raw['trustedIntegrations']),

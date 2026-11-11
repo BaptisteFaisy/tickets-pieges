@@ -1,4 +1,3 @@
-import { invoke } from '@forge/bridge';
 import { t } from '../core/i18n';
 import type {
   DetectionLayer,
@@ -158,9 +157,19 @@ function isApiResult<T>(value: unknown): value is ApiResult<T> {
   return typeof value === 'object' && value !== null && 'ok' in value;
 }
 
+/**
+ * Le pont Forge est chargé à l'appel, jamais à l'importation : `@forge/bridge`
+ * jette hors d'un produit Atlassian, et les résolveurs importent d'ici les
+ * types et les helpers du contrat — les tests tournent sans pont.
+ */
+async function bridgeInvoke(key: ResolverKey, payload: Record<string, unknown>): Promise<unknown> {
+  const bridge = await import('@forge/bridge');
+  return bridge.invoke(key, payload) as Promise<unknown>;
+}
+
 async function call<T>(key: ResolverKey, payload: Record<string, unknown>): Promise<ApiResult<T>> {
   try {
-    const result = await invoke<ApiResult<T>>(key, payload);
+    const result = await bridgeInvoke(key, payload);
     if (isApiResult<T>(result)) return result;
     return { ok: false, error: t('fr', 'ui.error.unreadable') };
   } catch (error) {
