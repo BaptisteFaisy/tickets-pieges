@@ -44,6 +44,35 @@ function ResultPane({ result, language }: { result: PlaygroundResult; language: 
   );
 }
 
+function SamplesTable({
+  samples,
+  language,
+  onPlay,
+}: {
+  samples: SampleRequest[];
+  language: Language;
+  onPlay: (sampleId: string) => Promise<void>;
+}): JSX.Element {
+  return (
+    <Table>
+      <Head>
+        <Cell>{t(language, 'ui.playground.samples')}</Cell>
+        <Cell>{language === 'fr' ? 'Langue' : 'Language'}</Cell>
+        <Cell>{t(language, 'ui.playground.run')}</Cell>
+      </Head>
+      {samples.map((sample) => (
+        <Row key={sample.id}>
+          <Cell>{sample.summary}</Cell>
+          <Cell>{sample.language}</Cell>
+          <Cell>
+            <Button appearance="subtle" text={t(language, 'ui.playground.run')} onClick={() => void onPlay(sample.id)} />
+          </Cell>
+        </Row>
+      ))}
+    </Table>
+  );
+}
+
 export function PlaygroundPage({ language }: { language: Language }): JSX.Element {
   const [samples, setSamples] = useState<AsyncState<SampleRequest[]>>({ status: 'loading' });
   const [result, setResult] = useState<PlaygroundResult | null>(null);
@@ -75,22 +104,7 @@ export function PlaygroundPage({ language }: { language: Language }): JSX.Elemen
       <Text>{t(language, 'ui.playground.intro')}</Text>
       {error ? <Banner appearance="error">{error}</Banner> : null}
       {samples.data.length === 0 ? <Text>{t(language, 'ui.playground.empty')}</Text> : null}
-      <Table>
-        <Head>
-          <Cell>{t(language, 'ui.playground.samples')}</Cell>
-          <Cell>{language === 'fr' ? 'Langue' : 'Language'}</Cell>
-          <Cell>{t(language, 'ui.playground.run')}</Cell>
-        </Head>
-        {samples.data.map((sample) => (
-          <Row key={sample.id}>
-            <Cell>{sample.summary}</Cell>
-            <Cell>{sample.language}</Cell>
-            <Cell>
-              <Button appearance="subtle" text={t(language, 'ui.playground.run')} onClick={() => void play(sample.id)} />
-            </Cell>
-          </Row>
-        ))}
-      </Table>
+      <SamplesTable samples={samples.data} language={language} onPlay={play} />
       {result ? <ResultPane result={result} language={result.language} /> : null}
       <Text>{t(language, 'ui.reduceRisk')}</Text>
     </Stack>
