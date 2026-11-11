@@ -109,7 +109,7 @@ export type GateFn = (text: string) => string | null;
 const ZERO_WIDTH = '\u200B';
 
 function fold(s: string): string {
-  return s.toLowerCase().split(ZERO_WIDTH).join('');
+  return s.toLowerCase().split(ZERO_WIDTH).join('').split(' ').join('');
 }
 
 /** Construit des tentatives déterministes autour du marqueur (aucune E/S). */
