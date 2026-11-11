@@ -1,14 +1,9 @@
 /**
- * Original conservé — squelette posé par le tronc, implémenté par le lot UI.
- * Référence : docs/CAHIER-DES-CHARGES.md §17.6.
+ * Original conservé (§17.6) — squelette posé par le tronc, implémenté par le lot UI.
+ * Composant monté par `src/ui/global-pages.tsx` (une seule page globale, trois routes).
  */
-import ForgeReconciler from '@forge/react';
 import { Text } from '@forge/react';
 
 export default function OriginalsPage(): JSX.Element {
   return <Text>Original conservé — écran à venir (lot UI).</Text>;
-}
-
-if (typeof (globalThis as { window?: unknown }).window !== 'undefined') {
-  ForgeReconciler.render(<OriginalsPage />);
 }

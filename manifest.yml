@@ -12,6 +12,9 @@ app:
     name: nodejs22.x
   licensing:
     enabled: false
+  # App enregistrée le 11 novembre 2026 (Developer Space « laddition »,
+  # baptiste.faisy@gmail.com) — voir docs/VALIDATIONS.md.
+  id: ari:cloud:ecosystem::app/6fb8fafb-3d45-4a47-bcac-f5d1cffe4902
 
 modules:
   # ------------------------------------------------------------------ fonctions
@@ -155,25 +158,22 @@ modules:
       resolver:
         function: resolver
 
+  # Une seule page globale, trois routes : Forge n'accepte qu'une entrée de ce
+  # module par app (mesuré par `forge lint` le 11 novembre 2026).
   jira:globalPage:
-    - key: pieges-exposure-page
-      title: Exposition
+    - key: pieges-global-pages
+      title: Tickets piégés
       render: native
-      resource: exposure-page
+      resource: global-pages
       resolver:
         function: resolver
-    - key: pieges-originals-page
-      title: Originaux conservés
-      render: native
-      resource: originals-page
-      resolver:
-        function: resolver
-    - key: pieges-playground-page
-      title: Banc d'essai
-      render: native
-      resource: playground-page
-      resolver:
-        function: resolver
+      pages:
+        - title: Exposition
+          route: exposition
+        - title: Originaux conservés
+          route: originaux
+        - title: Banc d'essai
+          route: banc
 
   # Propriété indexée : confiance et suspicion lisibles en JQL (§7 TP-07).
   jira:entityProperty:
@@ -455,12 +455,8 @@ resources:
     path: src/ui/suspect-queue.tsx
   - key: project-settings
     path: src/ui/project-settings.tsx
-  - key: exposure-page
-    path: src/ui/exposure-page.tsx
-  - key: originals-page
-    path: src/ui/originals-page.tsx
-  - key: playground-page
-    path: src/ui/playground-page.tsx
+  - key: global-pages
+    path: src/ui/global-pages.tsx
 
 permissions:
   scopes:
