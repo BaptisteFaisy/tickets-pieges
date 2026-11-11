@@ -277,3 +277,53 @@ n'est acquise avant d'avoir été jouée sur le site et cochée ici.
    se dit dans l'interface (§21 : ce qui n'a pas été analysé est affiché).
 4. La recette (§23) ne se coche qu'en entier, dans l'ordre, sur une installation
    neuve : c'est ce que verra un juge.
+
+## 7. Ce qui est mesuré à ce jour (11 novembre 2026, au soir)
+
+Ce qui suit est **mesuré**, pas supposé. Chaque ligne donne la commande et le
+résultat obtenu.
+
+### Chaîne Forge réelle
+
+| Étape | Commande | Résultat |
+|---|---|---|
+| Enregistrement de l'app | `forge create --template blank` (pseudo-TTY) | `ari:cloud:ecosystem::app/6fb8fafb-3d45-4a47-bcac-f5d1cffe4902`, Developer Space « laddition » |
+| Lint | `forge lint` | `No issues found` |
+| Build | `forge build` | `Build successful` (tag `00a6500d-85f3-4898-814b-e6c859bf0cb8`) |
+| Déploiement | `forge deploy --non-interactive -e development` | `✔ Deployed` — **manifeste validé par la plateforme**, pas seulement par le linter |
+| Installation | `forge install --site one-atlas-cndz.atlassian.net -p jira -e development --confirm-scopes` | `✔ Install in Jira complete!` |
+
+Le site de démonstration est `one-atlas-cndz.atlassian.net` (Jira + JSM).
+L'installation a accepté les neuf scopes déclarés, dont
+`read:request:jira-service-management`, `read:organization:jira-service-management`
+et `storage:app`.
+
+### Chaîne locale et CI
+
+| Contrôle | Résultat |
+|---|---|
+| `npx tsc --noEmit` (strict) | aucune erreur |
+| `npx vitest run` | **572 tests verts**, 46 fichiers, aucun réseau |
+| `python3 tools/check_limits.py` | tous les fichiers < 500 lignes, toutes les fonctions < 50 lignes |
+| `node tools/validate_manifest.mjs` | manifeste cohérent : 23 fonctions, 5 déclencheurs, 1 file, 2 tâches planifiées, 10 actions, 1 agent Rovo, 1 skill, 1 serveur MCP, 4 webtriggers, 1 SQL, 1 LLM |
+| `node tools/replay.mjs` | **38 demandes rejouées hors ligne** (les 19 familles du §22, en français et en anglais) |
+| CI self-hosted | checks `ci`, `ci-budget`, `couche0` verts ; 4 workers `r630-tickets-pieges-01..04` |
+| File de merge | 18 lots fusionnés par la file Mergify, **aucun push direct sur `main`** après l'amorce |
+
+### Ce que le banc d'essai prouve déjà, hors ligne
+
+Les points 1, 2, 3, 4, 7, 8 et 15 de la recette §23 sont joués par
+`node tools/replay.mjs` sans site Atlassian : origine T0/T1/T3, constat C1 sans
+modèle, constat C2 avec résumé neutre, identifiant de balise propre à chaque
+bloc et à chaque appel, déclenchement du mode « neutraliser » au-dessus du
+seuil, et absence d'appel réseau. Les points 5, 6, 9 à 14 exigent le modèle
+hébergé, un écran ou un agent Rovo : ils ne se cochent que sur le site.
+
+### Ce qui reste à mesurer sur le site
+
+Les neuf points du §20 (tableau de synthèse plus haut) et les points 5, 6 et 9 à
+14 de la recette §23. Le chemin est tracé : l'app est déployée et installée, le
+`webtrigger` de diagnostic (`pieges-smoke`) est déclaré au manifeste — son URL
+s'obtient par `forge webtrigger list -e development --site one-atlas-cndz.atlassian.net`
+(commande interactive : elle exige un TTY), puis le jeu d'essai se dépose depuis
+le portail pour déclencher de vrais événements.
