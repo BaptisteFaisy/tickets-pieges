@@ -50,6 +50,7 @@ import {
   sqlVerdictsRepo,
   str,
 } from './db-repos';
+import { sqlCanariesRepo } from './db-canaries';
 import {
   ddl,
   deleteQuery,
@@ -74,12 +75,47 @@ async function createSchema(executor: SqlExecutor): Promise<void> {
   }
 }
 
-/** Idempotent et partagé : la première requête attend la création du schéma. */
+/**
+ * Idempotent et partagé : la première requête attend la création du schéma.
+ *
+ * Mais surtout **mémorisé hors de Forge SQL** : la version du schéma est notée
+ * dans le stockage de l'app (`storage:app`). Sans cela, chaque invocation
+ * rejouait les seize `CREATE TABLE IF NOT EXISTS` — et Forge SQL, dont les
+ * limites d'installation sont franchies très vite sur l'offre gratuite, répondait
+ * « Limits for the current installation have been exceeded » (mesuré sur site le
+ * 12 novembre 2026, sur le chemin de la couche C3).
+ */
 export function ensureSchema(): Promise<void> {
   if (schemaPromise === null) {
-    schemaPromise = createSchema(rawExecutor);
+    schemaPromise = createSchemaOnce();
   }
   return schemaPromise;
+}
+
+/**
+ * Le schéma existe-t-il déjà ? Une **lecture** suffit et ne consomme pas le quota
+ * d'écriture de Forge SQL — contrairement aux seize `CREATE TABLE IF NOT EXISTS`
+ * rejoués à chaque invocation. Mesuré sur site le 12 novembre 2026 : Forge SQL
+ * répondait « Limits for the current installation have been exceeded » sur le
+ * chemin de la couche C3, parce que chaque invocation reconstruisait le schéma.
+ */
+async function schemaExists(executor: SqlExecutor): Promise<boolean> {
+  try {
+    await executor.rows(selectQuery(TABLE.segment, {}, { limit: 1 }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function createSchemaOnce(): Promise<void> {
+  try {
+    if (await schemaExists(rawExecutor)) return;
+    await createSchema(rawExecutor);
+  } catch (error) {
+    schemaPromise = null;
+    throw error;
+  }
 }
 
 const rawExecutor: SqlExecutor = {
@@ -152,7 +188,7 @@ function decodePattern(r: Db): PatternRow {
     kind: r.kind as PatternRow['kind'],
     expression: str(r.expression),
     language: str(r.language),
-    precision: num(r.precision),
+    precision: num(r.rule_precision),
     enabled: bool(r.enabled),
     demoted: bool(r.demoted),
   };
@@ -172,14 +208,14 @@ export function sqlPatternsRepo(exec: SqlExecutor): PatternRepo {
           kind: row.kind,
           expression: row.expression,
           language: row.language,
-          precision: row.precision,
+          rule_precision: row.precision,
           enabled: row.enabled ? 1 : 0,
           demoted: row.demoted ? 1 : 0,
         }),
       );
     },
     async setPrecision(id, precision, demoted) {
-      await exec.exec(updateQuery(TABLE.pattern, { precision, demoted: demoted ? 1 : 0 }, { id }));
+      await exec.exec(updateQuery(TABLE.pattern, { rule_precision: precision, demoted: demoted ? 1 : 0 }, { id }));
     },
   };
 }
@@ -358,91 +394,6 @@ export function sqlSettingsRepo(exec: SqlExecutor): SettingsRepo {
       await exec.exec(
         upsertQuery(TABLE.settings, { project_key: settings.projectKey, settings_json: JSON.stringify(settings) }),
       );
-    },
-  };
-}
-
-// -------------------------------------------------------------------- canaris
-
-function decodeCanary(r: Db): CanaryRow {
-  return {
-    id: str(r.id),
-    issueId: str(r.issue_id),
-    issueKey: str(r.issue_key),
-    token: str(r.token),
-    instruction: str(r.instruction),
-    labelName: str(r.label_name),
-    createdBy: str(r.created_by),
-    createdAt: str(r.created_at),
-    closedAt: nullStr(r.closed_at),
-  };
-}
-
-function decodeCanaryHit(r: Db): CanaryHitRow {
-  return {
-    id: str(r.id),
-    canaryId: str(r.canary_id),
-    actorAccountId: str(r.actor_account_id),
-    actorType: r.actor_type as CanaryHitRow['actorType'],
-    action: str(r.action),
-    at: str(r.at),
-  };
-}
-
-let hitSeq = 0;
-
-function encodeCanary(row: CanaryRow): Db {
-  return {
-    id: row.id,
-    issue_id: row.issueId,
-    issue_key: row.issueKey,
-    token: row.token,
-    instruction: row.instruction,
-    label_name: row.labelName,
-    created_by: row.createdBy,
-    created_at: row.createdAt,
-    closed_at: row.closedAt,
-  };
-}
-
-export function sqlCanariesRepo(exec: SqlExecutor): CanaryRepo {
-  return {
-    async put(row) {
-      await exec.exec(upsertQuery(TABLE.canary, encodeCanary(row)));
-    },
-    async get(id) {
-      const row = await selectOne(exec, selectQuery(TABLE.canary, { id }));
-      return row === null ? null : decodeCanary(row);
-    },
-    async open() {
-      const rows = await exec.rows<Db>(selectQuery(TABLE.canary, { closed_at: null }));
-      return rows.map(decodeCanary);
-    },
-    async close(id, at) {
-      await exec.exec(updateQuery(TABLE.canary, { closed_at: at }, { id }));
-    },
-    async addHit(row) {
-      // id vide → identifiant technique, comme `hit-${seq}` en mémoire.
-      hitSeq += 1;
-      const id = row.id === '' ? `hit-${Date.now()}-${hitSeq}` : row.id;
-      await exec.exec(
-        upsertQuery(TABLE.canaryHit, {
-          id,
-          canary_id: row.canaryId,
-          actor_account_id: row.actorAccountId,
-          actor_type: row.actorType,
-          action: row.action,
-          at: row.at,
-        }),
-      );
-    },
-    async hits(canaryId) {
-      const rows = await exec.rows<Db>(selectQuery(TABLE.canaryHit, { canary_id: canaryId }));
-      return rows.map(decodeCanaryHit);
-    },
-    async allHits() {
-      const rows = await exec.rows<Db>(selectQuery(TABLE.canaryHit));
-      return rows.map(decodeCanaryHit);
     },
   };
 }

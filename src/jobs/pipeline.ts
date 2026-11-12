@@ -23,9 +23,8 @@ import type {
   SuspicionLevel,
 } from '../core/types';
 import { computeOrigin } from '../core/origin';
+import { detectText } from '../core/detect';
 import { defaultSettings } from '../core/trust-rules';
-import { detectConcealment } from '../core/c1-concealment';
-import { detectAddressing } from '../core/c2-addressing';
 import { contextHits, contextScore, type IssueContext } from '../core/context';
 import { toFindings } from '../core/findings';
 import { computeSuspicion, toIssueState } from '../core/suspicion';
@@ -177,9 +176,16 @@ async function scanSegments(
     const origin = origins[index]!;
     await deps.store.segments.put(segmentRow(id, segment, origin.trustLevel, now));
 
+    // Une seule implémentation de la détection (`src/core/detect.ts`) : C1, C2,
+    // décodage réanalysé et pression lexicale. C'est elle que jouent aussi le
+    // banc d'essai et le site — sinon le jeu d'essai et le ticket divergent
+    // (mesuré le 12 novembre 2026 sur un bloc encodé : « suspect » dans le jeu,
+    // « propre » sur le ticket).
     const hits: LayerHit[] = [
-      ...detectConcealment({ text: segment.text, language: settings.language }),
-      ...detectAddressing(segment.text, { language: settings.language, ignoredPhrases: settings.ignoredPhrases }),
+      ...detectText(segment.text, {
+        language: settings.language,
+        ignoredPhrases: settings.ignoredPhrases,
+      }),
       ...contextHits(segment, context, { now, language: settings.language }),
     ];
     const produced = toFindings({ hits, segment, segmentId: id, language: settings.language, now });
@@ -189,11 +195,34 @@ async function scanSegments(
     findings.push(...produced);
 
     if (settings.c3Enabled && isExternal(origin.trustLevel)) {
-      queued += 1;
-      await deps.enqueueC3?.({ issueId: segment.issueId, segmentId: id });
+      queued += await enqueueSafely(deps, segment.issueId, id);
     }
   }
   return { origins, findings, queued };
+}
+
+
+/**
+ * Met la couche C3 en file **sans jamais faire échouer l'analyse**.
+ *
+ * L'origine, le bandeau et la propriété indexée doivent être en place même si la
+ * file est indisponible (§18 : l'origine est posée dès l'étape 1). Un échec de
+ * mise en file est journalisé, pas propagé — mesuré sur site le 12 novembre
+ * 2026 : `Queue.push` répondait 400 et la demande n'était plus analysée du tout.
+ */
+async function enqueueSafely(deps: PipelineDeps, issueId: string, segmentId: string): Promise<number> {
+  if (!deps.enqueueC3) return 0;
+  try {
+    await deps.enqueueC3({ issueId, segmentId });
+    return 1;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    await deps.store.events.append('c3-enqueue-failed', issueId, {
+      segmentId,
+      reason: reason.slice(0, 200),
+    });
+    return 0;
+  }
 }
 
 /** La ligne `segment` du §19. */
@@ -294,8 +323,14 @@ async function readDescription(deps: PipelineDeps, issueKey: string): Promise<st
   }
 }
 
-/** Écrit la propriété indexée (TP-07) : confiance et suspicion lisibles en JQL. */
-async function writeProperty(deps: PipelineDeps, state: IssueState, language: Language): Promise<void> {
+/**
+ * Écrit la propriété indexée (TP-07) : confiance et suspicion lisibles en JQL.
+ *
+ * Exportée : après la couche C3, la suspicion peut changer, et la propriété
+ * doit refléter le nouvel état — sinon le ticket continue d'annoncer « sain »
+ * alors que le modèle a relevé une consigne (mesuré le 12 novembre 2026).
+ */
+export async function writeProperty(deps: PipelineDeps, state: IssueState, language: Language): Promise<void> {
   void language;
   await deps.store.states.put({
     issueId: state.issueId,

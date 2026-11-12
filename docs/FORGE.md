@@ -22,10 +22,30 @@ séparation.
 
 - **`LIMIT ?` lié → `ERROR 1210 Incorrect arguments to LIMIT`.** La limite
   s'inline après coercion entière : `` `LIMIT ${Math.max(1, n | 0)}` ``.
+- **Les mots réservés cassent le DDL, et rien ne le voit en local.** `PRECISION`
+  est réservé par MySQL/TiDB : une colonne `precision DOUBLE` fait échouer
+  `CREATE TABLE` avec `ER_PARSE_ERROR 1064`. Ni `forge lint`, ni `tsc`, ni les
+  tests ne l'attrapent — le SQL n'est exécuté que par Forge SQL. Mesuré sur site
+  le 12 novembre 2026 : aucune table créée, donc aucun déclencheur ne pouvait
+  écrire. Colonne renommée `rule_precision` (le contrat TypeScript, lui, garde
+  `precision`). Vérifier chaque nom de colonne contre la liste des mots réservés
+  MySQL avant de déployer, et **lire `forge logs` après le premier événement réel**.
 - Le schéma se crée explicitement : un `defineSchemaOnce()` jamais appelé laisse
   les tables absentes (panne silencieuse au premier `SELECT`).
 - Les colonnes `TEXT`/`JSON` se lisent en chaîne : sérialiser soi-même
   (`payload_json`), ne pas compter sur un typage automatique.
+
+### REST Jira et Confluence depuis une app
+
+- **`Content-Type: application/json` est obligatoire** sur tout `PUT`/`POST` avec
+  un corps : sans lui, Forge envoie `text/plain` et Jira répond **415 Unsupported
+  Media Type**. Mesuré le 12 novembre 2026 sur l'écriture de la propriété
+  indexée — ni `forge lint`, ni les tests ne le voient (le port n'est pas
+  injectable).
+- **Le corps d'une propriété est stocké tel quel** : `PUT /rest/api/3/issue/{k}/properties/{p}`
+  avec `{"value": {...}}` produit une propriété `value.value` que le lecteur ne
+  sait pas déchiffrer. Envoyer la valeur **nue**. Vérifier le résultat en relisant
+  la propriété par REST, pas seulement le code de réponse.
 
 ## 3. File d'événements (`@forge/events`)
 
@@ -58,6 +78,30 @@ séparation.
   écrit dans `manifest.yml` est ensuite versionné.
 - `forge install --demo-site` crée un site de démonstration gratuit (90 jours,
   données réalistes) — c'est le site de la recette §23 et des juges §25.
+
+## 5 bis. Ce que le site live a appris (12 novembre 2026)
+
+Cinq défauts que **ni `forge lint`, ni `tsc`, ni les 1226 tests** ne montraient,
+parce qu'ils n'existent que sur Forge. Tous ont été trouvés en semant le site
+de démonstration et en relisant les journaux (`forge logs`).
+
+| Symptôme | Cause | Correctif |
+|---|---|---|
+| `ER_PARSE_ERROR 1064 … near "precision DOUBLE"` | `PRECISION` est un **mot réservé** MySQL/TiDB : **aucune table n'était créée**, donc aucun déclencheur ne pouvait écrire | colonne `rule_precision` |
+| `415 Unsupported Media Type` sur toute écriture REST | sans `Content-Type: application/json`, Forge envoie le corps en `text/plain` | en-tête posé au point d'entrée commun des requêtes |
+| `SyntaxError: Unexpected end of JSON input` après une écriture | l'API répond **204 sans corps** ; `response.json()` casse sur un corps vide | lecture du texte, `null` si vide |
+| la propriété est stockée en `value.value` | le corps d'une propriété est **stocké tel quel** : l'envelopper dans `{ value }` double l'imbrication | envoyer la valeur nue |
+| `400 Bad Request` sur `Queue.push` | la forme `consumer: { resolver: { function, method } }` **n'enregistre pas la file** dans le runtime : la couche C3 ne tourne jamais | consumer en forme « fonction simple » (`function: <clé>`) |
+| `Limits for the current installation have been exceeded` (Forge SQL) | chaque invocation rejouait les seize `CREATE TABLE IF NOT EXISTS` | une **lecture** suffit à savoir si le schéma existe (les lectures ne brûlent pas le quota d'écriture) |
+
+Et deux corrections de fond, trouvées en comparant le jeu d'essai au site :
+
+- **le compte d'un utilisateur Atlassian cloud moderne porte le préfixe de son
+  tenant** (`712020:ba9bbe36-…`) : le confondre avec un compte d'app faisait
+  classer **T0** les tickets internes. Seule la forme `ari:…` est un compte d'app.
+- **trois appelants n'assemblaient pas la même détection** (banc, production,
+  site) : le jeu d'essai annonçait « suspect » là où le ticket disait « propre ».
+  La détection a désormais **un seul point d'entrée** (`src/core/detect.ts`).
 
 ## 6. Ce que seul le déploiement réel révèle
 

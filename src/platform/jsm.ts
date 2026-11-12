@@ -79,7 +79,12 @@ export function visibilityPropertyBody(visibility: CommentVisibility): { key: st
 export function accountTypeOf(accountId: string, supportAgent = false): AccountType {
   if (accountId === '') return 'unknown';
   if (supportAgent) return 'atlassian';
-  if (accountId.includes(':')) return 'app';
+  // Un compte Atlassian **cloud moderne** porte le préfixe de son tenant
+  // (`712020:ba9bbe36-…`) : le confondre avec un compte d'app faisait classer
+  // T0 les tickets internes — mesuré sur site réel le 12 novembre 2026.
+  if (/^\d+:[0-9a-f-]+$/i.test(accountId)) return 'atlassian';
+  // Seuls les comptes d'app ont une identité `ari:…`.
+  if (accountId.startsWith('ari:')) return 'app';
   if (accountId.startsWith('5d')) return 'customer';
   if (accountId.startsWith('5b')) return 'atlassian';
   return 'unknown';

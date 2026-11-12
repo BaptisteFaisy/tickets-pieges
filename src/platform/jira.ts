@@ -62,11 +62,24 @@ function asRecord(value: unknown): Json {
 }
 
 async function requestJson(path: string, init?: { method?: string; body?: string }): Promise<unknown> {
-  const response = await api.asApp().requestJira(assumeTrustedRoute(path), init);
+  // `Content-Type: application/json` est **obligatoire** : sans lui, Forge
+  // envoie le corps en `text/plain` et Jira répond 415 « Unsupported Media Type »
+  // (mesuré sur site réel le 12 novembre 2026, à l'écriture de la propriété
+  // indexée). Le type est aussi dans le type de `init` pour que les appels
+  // futureurs n'oublient pas l'en-tête.
+  const withHeaders = init?.body
+    ? { ...init, headers: { 'Content-Type': 'application/json' } }
+    : init;
+  const response = await api.asApp().requestJira(assumeTrustedRoute(path), withHeaders);
   if (!response.ok) {
     throw new Error(`Jira REST ${response.status} sur ${path}`);
   }
-  return response.status === 204 ? null : response.json();
+  if (response.status === 204) return null;
+  // Un corps vide (204 ou 200 sans corps) n'est pas une erreur : l'écriture de
+  // la propriété indexée répond 204, et `response.json()` levait alors
+  // « Unexpected end of JSON input » (mesuré sur site le 12 novembre 2026).
+  const raw = await response.text();
+  return raw.trim().length > 0 ? JSON.parse(raw) : null;
 }
 
 function issuePath(issueIdOrKey: string): string {
@@ -247,6 +260,10 @@ export function createJiraPort(deps: JiraPortDeps = {}): JiraPort {
       journal('segment-text-replaced', issueKey, { field, refId });
     },
     async setEntityProperty(issueKey, key, value) {
+      // Mesuré sur site le 12 novembre 2026 : Jira stocke le corps **tel quel**
+      // comme valeur de la propriété. Envelopper dans `{ value }` produit donc
+      // une double imbrication (`value.value`) que `parsePiegesProperty` ne sait
+      // pas lire — c'est le corps nu qu'il faut envoyer.
       await requestJson(`${issuePath(issueKey)}/properties/${encodeURIComponent(key)}`, {
         method: 'PUT',
         body: JSON.stringify(value),
