@@ -19,7 +19,16 @@ import {
   taint,
 } from '../../core/session';
 import {
-  badge, buttonHtml, byId, field, grid, heading, note, panel, selectHtml, table, valueOf,
+  DEFAULT_SESSION_TTL_MS,
+  expiresAt,
+  remainingMs,
+  signSessionToken,
+  verifySessionToken,
+  type SessionClaims,
+  type SessionTokenCheck,
+} from '../../core/session-token';
+import {
+  badge, buttonHtml, byId, field, grid, heading, kv, note, panel, pre, selectHtml, table, valueOf,
 } from '../dom';
 import type { Section, SectionContext } from './types';
 
@@ -53,6 +62,26 @@ const TEXTS = {
   notifiedInternal: { fr: 'Contenu interne : la session reste saine.', en: 'Internal content: the session stays clean.' },
   notifiedEnded: { fr: 'Session terminée : la marque tombe.', en: 'Session ended: the mark is dropped.' },
   notifiedDecision: { fr: 'Décision rendue pour le geste.', en: 'Decision returned for the gesture.' },
+  tokenTitle: { fr: '3. Jeton signé HMAC (#23) et TTL d’inactivité (#24)', en: '3. HMAC-signed token (#23) and inactivity TTL (#24)' },
+  tokenIntro: {
+    fr: 'La marque est auto-portée : un jeton signé avec une clé de démonstration saisie ici (jamais stockée). Altérer la charge casse la signature. Le TTL glissant compte depuis la dernière activité — simulez le temps qui passe.',
+    en: 'The mark is self-contained: a token signed with a demo key typed here (never stored). Altering the payload breaks the signature. The sliding TTL runs from the last activity — simulate time passing.',
+  },
+  key: { fr: 'Clé de démonstration (≥ 16 caractères)', en: 'Demo key (≥ 16 characters)' },
+  sign: { fr: 'Signer la marque', en: 'Sign the mark' },
+  verify: { fr: 'Vérifier le jeton', en: 'Verify the token' },
+  tamper: { fr: 'Altérer la charge', en: 'Tamper with the payload' },
+  plus5: { fr: '+5 min d’inactivité', en: '+5 min idle' },
+  plus35: { fr: '+35 min d’inactivité', en: '+35 min idle' },
+  noToken: { fr: 'Aucun jeton signé pour l’instant.', en: 'No signed token yet.' },
+  valid: { fr: 'jeton valable', en: 'token valid' },
+  expires: { fr: 'Échéance (TTL glissant)', en: 'Expires at (sliding TTL)' },
+  remaining: { fr: 'Activité restante', en: 'Activity remaining' },
+  notifiedSigned: { fr: 'Jeton signé.', en: 'Token signed.' },
+  notifiedNoKey: { fr: 'Clé trop courte : rien n’est signé sans clé utilisable.', en: 'Key too short: nothing is signed without a usable key.' },
+  notifiedVerified: { fr: 'Jeton vérifié.', en: 'Token verified.' },
+  notifiedTampered: { fr: 'Charge altérée : vérifiez, la signature tombe.', en: 'Payload altered: verify it, the signature fails.' },
+  notifiedNoToken: { fr: 'Signez d’abord un jeton.', en: 'Sign a token first.' },
 } as const;
 
 type TextKey = keyof typeof TEXTS;
@@ -66,13 +95,22 @@ interface SessionsState {
   trust: TrustLevel;
   action: GuardedAction;
   offsetMin: number;
+  key: string;
+  token: string | null;
+  check: SessionTokenCheck | null;
 }
 
-let state: SessionsState = { taints: [], trust: 'T1', action: 'public-reply', offsetMin: 0 };
+let state: SessionsState = {
+  taints: [], trust: 'T1', action: 'public-reply', offsetMin: 0,
+  key: '', token: null, check: null,
+};
 
 /** Remet la démonstration à zéro (tests, bouton de réinitialisation). */
 export function resetSessionsDemo(): void {
-  state = { taints: [], trust: 'T1', action: 'public-reply', offsetMin: 0 };
+  state = {
+    taints: [], trust: 'T1', action: 'public-reply', offsetMin: 0,
+    key: '', token: null, check: null,
+  };
 }
 
 /** Heure simulée de la démonstration : `ctx.now` décalé, jamais l’heure système. */
@@ -88,6 +126,36 @@ export function currentTaint(): TaintedSession | null {
 /** Décision du §9 pour le geste sélectionné. */
 export function gestureDecision(lang: 'fr' | 'en'): SessionDecision {
   return requiresConfirmation(currentTaint(), state.action, lang);
+}
+
+/** Affirmations signables (#23) pour la session de démonstration. */
+export function demoClaims(ctx: SectionContext): SessionClaims {
+  const now = demoNow(ctx);
+  return {
+    sessionRef: DEMO.sessionRef,
+    accountId: DEMO.accountId,
+    issueId: DEMO.issueId,
+    taintedSince: currentTaint()?.since ?? now,
+    lastActivityAt: now,
+    publicRepliesUsed: 0,
+    quarantine: false,
+  };
+}
+
+/** Altère un caractère de la charge : la signature ne peut plus suivre. */
+export function tamperToken(token: string): string {
+  const parts = token.split('.');
+  if (parts.length !== 3) return token;
+  const payload = parts[1] ?? '';
+  parts[1] = (payload.charAt(0) === 'A' ? 'B' : 'A') + payload.slice(1);
+  return parts.join('.');
+}
+
+/** Compte à rebours lisible (m:ss) ; `0:00` une fois l’échéance passée. */
+export function formatRemaining(ms: number): string {
+  if (Number.isNaN(ms) || ms <= 0) return '0:00';
+  const total = Math.floor(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
 function taintStatus(ctx: SectionContext): string {
@@ -128,8 +196,36 @@ function gesturePanel(ctx: SectionContext): string {
   );
 }
 
+function tokenHtml(ctx: SectionContext): string {
+  if (!state.token) return note(tx(ctx, 'noToken'));
+  const { check } = state;
+  const verdict = check
+    ? (check.ok ? badge(tx(ctx, 'valid'), 'ok') : badge(check.reason, 'danger'))
+    : '';
+  const claims = check?.claims ?? demoClaims(ctx);
+  const deadline = check?.expiresAt ?? expiresAt(claims, DEFAULT_SESSION_TTL_MS);
+  const left = formatRemaining(remainingMs(claims, demoNow(ctx), DEFAULT_SESSION_TTL_MS));
+  return pre(state.token) +
+    `<p>${verdict}</p>` +
+    kv([[tx(ctx, 'expires'), deadline ?? '—'], [tx(ctx, 'remaining'), left]]);
+}
+
+function tokenPanel(ctx: SectionContext): string {
+  return panel(
+    heading(tx(ctx, 'tokenTitle')) +
+    note(tx(ctx, 'tokenIntro')) +
+    field(tx(ctx, 'key'), '<input id="s-key" type="text" size="34" placeholder="demo-key-0123456789">') +
+    buttonHtml('s-sign', tx(ctx, 'sign')) +
+    buttonHtml('s-verify', tx(ctx, 'verify'), 'ghost') +
+    buttonHtml('s-tamper', tx(ctx, 'tamper'), 'ghost') +
+    buttonHtml('s-plus5', tx(ctx, 'plus5'), 'ghost') +
+    buttonHtml('s-plus35', tx(ctx, 'plus35'), 'ghost') +
+    `<div id="s-token">${tokenHtml(ctx)}</div>`,
+  );
+}
+
 function render(ctx: SectionContext): string {
-  return grid(taintPanel(ctx), gesturePanel(ctx));
+  return grid(taintPanel(ctx), gesturePanel(ctx)) + tokenPanel(ctx);
 }
 
 function refresh(root: HTMLElement, ctx: SectionContext): void {
@@ -137,10 +233,50 @@ function refresh(root: HTMLElement, ctx: SectionContext): void {
   if (status) status.innerHTML = taintStatus(ctx);
   const decision = byId(root, 's-decision');
   if (decision) decision.innerHTML = decisionHtml(ctx);
+  const token = byId(root, 's-token');
+  if (token) token.innerHTML = tokenHtml(ctx);
 }
 
 function on(root: HTMLElement, id: string, handler: () => void): void {
   byId<HTMLButtonElement>(root, id)?.addEventListener('click', handler);
+}
+
+function mountToken(root: HTMLElement, ctx: SectionContext): void {
+  on(root, 's-sign', () => {
+    state.key = valueOf(root, 's-key');
+    state.token = signSessionToken(demoClaims(ctx), state.key);
+    state.check = null;
+    refresh(root, ctx);
+    ctx.notify(state.token ? tx(ctx, 'notifiedSigned') : tx(ctx, 'notifiedNoKey'));
+  });
+  on(root, 's-verify', () => {
+    if (!state.token) {
+      ctx.notify(tx(ctx, 'notifiedNoToken'));
+      return;
+    }
+    state.key = valueOf(root, 's-key') || state.key;
+    state.check = verifySessionToken(state.token, state.key, demoNow(ctx), DEFAULT_SESSION_TTL_MS);
+    refresh(root, ctx);
+    ctx.notify(tx(ctx, 'notifiedVerified'));
+  });
+  on(root, 's-tamper', () => {
+    if (!state.token) {
+      ctx.notify(tx(ctx, 'notifiedNoToken'));
+      return;
+    }
+    state.token = tamperToken(state.token);
+    state.check = null;
+    refresh(root, ctx);
+    ctx.notify(tx(ctx, 'notifiedTampered'));
+  });
+  on(root, 's-plus5', () => {
+    state.offsetMin += 5;
+    refresh(root, ctx);
+  });
+  on(root, 's-plus35', () => {
+    state.offsetMin += 35;
+    refresh(root, ctx);
+  });
 }
 
 function mount(root: HTMLElement, ctx: SectionContext): void {
@@ -161,6 +297,7 @@ function mount(root: HTMLElement, ctx: SectionContext): void {
     refresh(root, ctx);
     ctx.notify(tx(ctx, 'notifiedDecision'));
   });
+  mountToken(root, ctx);
 }
 
 export const sessionsSection: Section = {
