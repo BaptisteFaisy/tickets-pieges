@@ -56,6 +56,15 @@ export const TIMING_INTERVALS: readonly IntervalSpec[] = [
   { name: 'c3', from: 'created', to: 'c3' },
 ];
 
+/** Libellés lisibles des intervalles, pour le rapport et docs/MESURES.md. */
+export const INTERVAL_LABELS: Record<TimingInterval, string> = {
+  origin: 'origine écrite',
+  c1: 'couche C1 (dissimulation)',
+  c2: 'couche C2 (adresse à une IA)',
+  mode: 'mode appliqué — fenêtre d’exposition',
+  c3: 'verdict C3 (file asynchrone)',
+};
+
 export function emptyTrace(issueKey: string): TimingTrace {
   return { issueKey, marks: [] };
 }
@@ -394,7 +403,7 @@ export function renderReportMarkdown(report: TimingReport): string {
       measurement.source === 'measured' && measurement.value !== null
         ? formatMs(measurement.value)
         : 'à mesurer sur site';
-    lines.push('| ' + spec.name + ' | ' + value + ' | ' + measurement.source + ' |');
+    lines.push('| ' + INTERVAL_LABELS[spec.name] + ' | ' + value + ' | ' + measurement.source + ' |');
   }
   lines.push(...queueRows(report), ...throughputRows(report));
   for (const check of report.objectives) {
