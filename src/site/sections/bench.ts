@@ -9,11 +9,12 @@
  * jouées est borné (`PLAYED_CAP`) et le temps mesuré est affiché.
  */
 
-import { corpusStats } from '../../bench/corpus';
-import { detectEntry } from '../../bench/detector';
-import { byId, buttonHtml, field, grid, heading, kv, note, panel, selectHtml, valueOf } from '../dom';
+import { corpusStats, type CorpusEntry } from '../../bench/corpus';
+import { createDetector, detectEntry } from '../../bench/detector';
+import { measureCorpus, type CorpusMetrics } from '../../bench/metrics';
+import { byId, buttonHtml, field, grid, heading, note, panel, selectHtml, valueOf } from '../dom';
 import { familyKeys, filterEntries, fullCorpus, PLAYED_CAP, playedEntries } from './bench-corpus';
-import { corpusOptions, entryView, filterOptions } from './bench-views';
+import { corpusOptions, entryView, filterOptions, gapsView, headerView, metricsView } from './bench-views';
 import type { Section, SectionContext } from './types';
 
 /** Textes visibles de la section, dans les deux langues (règle 9 du brief). */
@@ -31,16 +32,25 @@ const TEXTS = {
   allFamilies: { fr: 'Toutes les familles', en: 'All families' },
   detail: { fr: 'Corpus — entrée sélectionnée', en: 'Corpus — selected entry' },
   results: { fr: 'Résultats du banc', en: 'Bench results' },
-  corpus: { fr: 'Corpus', en: 'Corpus' },
-  attacks: { fr: 'Charges', en: 'Attacks' },
-  legitimate: { fr: 'Textes légitimes', en: 'Legitimate texts' },
-  filtered: { fr: 'Entrées du filtre', en: 'Filtered entries' },
-  played: { fr: 'Entrées jouées', en: 'Played entries' },
-  time: { fr: 'Temps mesuré', en: 'Measured time' },
 } as const;
 
 function text(ctx: SectionContext, key: keyof typeof TEXTS): string {
   return TEXTS[key][ctx.lang];
+}
+
+/** Ce que produit un rejeu du banc dans la page. */
+export interface BenchRun {
+  readonly played: number;
+  readonly metrics: CorpusMetrics;
+}
+
+/**
+ * Rejeu pur et déterministe : le détecteur du domaine (C1, C2, décodage,
+ * pression) sur les entrées choisies. Exposé pour les tests, sans DOM.
+ */
+export function playBench(entries: readonly CorpusEntry[]): BenchRun {
+  const detect = createDetector();
+  return { played: entries.length, metrics: measureCorpus(entries, detect) };
 }
 
 /** Remplit une liste déroulante sans HTML brut (`textContent` : jamais injecté). */
@@ -81,24 +91,18 @@ function refreshEntries(root: HTMLElement, ctx: SectionContext): void {
   showEntry(root, ctx);
 }
 
-/** Joue le banc et affiche le résultat dans la zone dédiée. */
+/** Joue le banc (entrées bornées) et affiche en-tête, écarts et métriques. */
 function run(root: HTMLElement, ctx: SectionContext): void {
   const target = byId<HTMLDivElement>(root, 'b-result');
   if (!target) return;
-  const started = performance.now();
-  const stats = corpusStats(fullCorpus());
   const { lang, family } = currentFilter(root);
-  const filtered = filterEntries(lang, family).length;
-  const played = playedEntries(lang, family).length;
+  const started = performance.now();
+  const outcome = playBench(playedEntries(lang, family));
   const elapsed = performance.now() - started;
-  target.innerHTML = kv([
-    [text(ctx, 'corpus'), String(stats.total)],
-    [text(ctx, 'attacks'), String(stats.attacks)],
-    [text(ctx, 'legitimate'), String(stats.legitimate)],
-    [text(ctx, 'filtered'), String(filtered)],
-    [text(ctx, 'played'), `${played} / ${PLAYED_CAP}`],
-    [text(ctx, 'time'), `${elapsed.toFixed(1)} ms`],
-  ]);
+  target.innerHTML =
+    headerView(corpusStats(fullCorpus()), outcome.played, PLAYED_CAP, elapsed, ctx.lang) +
+    gapsView(ctx.lang) +
+    metricsView(outcome.metrics, ctx.lang);
 }
 
 /** Formulaire : filtres du corpus, entrée navigable, bouton de rejeu. */
