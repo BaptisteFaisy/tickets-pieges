@@ -1,8 +1,12 @@
 # Table de correspondance MITRE ATLAS
 
 > Idée #96 · source des données : [`data/atlas.json`](../data/atlas.json) · module :
-> [`src/core/atlas.ts`](../src/core/atlas.ts) · ce document est **généré** depuis la table,
-> aucune ligne n’y est recopiée à la main.
+> [`src/core/atlas.ts`](../src/core/atlas.ts).
+>
+> Les tableaux ci-dessous sont produits depuis la table, aucune ligne n’y est recopiée à la main.
+> Le script de production n’est pas versionné (hors périmètre du lot) : **la table JSON est la
+> seule source de vérité**, et [`src/core/atlas.test.ts`](../src/core/atlas.test.ts) vérifie
+> qu’aucune technique inventée ni aucun `ruleId` oublié ne peut y entrer.
 
 Chaque règle du produit est rattachée à une technique de [MITRE ATLAS](https://atlas.mitre.org),
 la matrice des techniques d’attaque contre les systèmes d’IA. Le catalogue officiel compte
