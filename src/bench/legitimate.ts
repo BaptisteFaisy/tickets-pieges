@@ -84,21 +84,24 @@ function rate(numerator: number, denominator: number): number {
   return denominator > 0 ? round(numerator / denominator) : 0;
 }
 
-/**
- * Mesure les faux positifs du corpus légitime : combien de textes ordinaires
- * (et de pièges) sont relevés à tort, par règle, et le taux correspondant.
- */
-export function measureLegit(
-  entries: readonly LegitCorpusEntry[],
-  detect: Detector,
-): LegitMeasure {
+/** Compteurs internes d'une règle pendant le balayage. */
+interface RuleCount {
+  ruleId: string;
+  layer: LayerHit['layer'];
+  falsePositivesPlain: number;
+  falsePositivesTrap: number;
+}
+
+/** Résultat brut du balayage du corpus légitime. */
+interface LegitScan {
+  plainFalsePositives: string[];
+  trapFalsePositives: string[];
+  plainC2Fp: number;
+  perRule: RuleCount[];
+}
+
+function scanLegit(entries: readonly LegitCorpusEntry[], detect: Detector): LegitScan {
   const { plain, trap } = splitLegit(entries);
-  interface RuleCount {
-    ruleId: string;
-    layer: LayerHit['layer'];
-    falsePositivesPlain: number;
-    falsePositivesTrap: number;
-  }
   const perRule = new Map<string, RuleCount>();
 
   const count = (hit: LayerHit, isTrap: boolean): void => {
@@ -129,19 +132,32 @@ export function measureLegit(
     for (const hit of hits) count(hit, true);
   }
 
-  const perRuleSorted: LegitPerRule[] = Array.from(perRule.values())
+  return { plainFalsePositives, trapFalsePositives, plainC2Fp, perRule: Array.from(perRule.values()) };
+}
+
+/**
+ * Mesure les faux positifs du corpus légitime : combien de textes ordinaires
+ * (et de pièges) sont relevés à tort, par règle, et le taux correspondant.
+ */
+export function measureLegit(
+  entries: readonly LegitCorpusEntry[],
+  detect: Detector,
+): LegitMeasure {
+  const { plain, trap } = splitLegit(entries);
+  const scan = scanLegit(entries, detect);
+  const perRule: LegitPerRule[] = scan.perRule
     .sort((a, b) => a.ruleId.localeCompare(b.ruleId));
 
   return {
     total: entries.length,
     plainCount: plain.length,
     trapCount: trap.length,
-    plainFalsePositives: plainFalsePositives.sort(),
-    trapFalsePositives: trapFalsePositives.sort(),
-    plainFpRate: rate(plainFalsePositives.length, plain.length),
-    trapFpRate: rate(trapFalsePositives.length, trap.length),
-    plainC2Fp,
-    perRule: perRuleSorted,
+    plainFalsePositives: scan.plainFalsePositives.sort(),
+    trapFalsePositives: scan.trapFalsePositives.sort(),
+    plainFpRate: rate(scan.plainFalsePositives.length, plain.length),
+    trapFpRate: rate(scan.trapFalsePositives.length, trap.length),
+    plainC2Fp: scan.plainC2Fp,
+    perRule,
   };
 }
 
