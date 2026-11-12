@@ -32,7 +32,7 @@ export function renderCline(plan: ClientPlan, label: string): ArtifactDraft[] {
   };
   const lines = [`# ${title}`, ''];
   lines.push(t(plan.language, 'hook.client.path', { path: CLINE_RULES_PATH }), '');
-  lines.push(plan.texts.rulesBody, '');
+  lines.push(plan.texts.rulesBody, '', plan.texts.noHooks, '');
   return [
     {
       path: CLINE_MCP_PATH,

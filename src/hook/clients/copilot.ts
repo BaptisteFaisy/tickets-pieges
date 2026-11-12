@@ -31,7 +31,7 @@ export function renderCopilot(plan: ClientPlan, label: string): ArtifactDraft[] 
   };
   const lines = [`# ${title}`, ''];
   lines.push(t(plan.language, 'hook.client.path', { path: COPILOT_INSTRUCTIONS_PATH }), '');
-  lines.push(plan.texts.rulesBody, '');
+  lines.push(plan.texts.rulesBody, '', plan.texts.noHooks, '');
   return [
     {
       path: COPILOT_MCP_PATH,

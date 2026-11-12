@@ -32,7 +32,7 @@ export function renderCursor(plan: ClientPlan, label: string): ArtifactDraft[] {
   };
   const rules = ['---', `description: ${title}`, 'alwaysApply: true', '---', '', `# ${title}`, ''];
   rules.push(t(plan.language, 'hook.client.path', { path: CURSOR_RULES_PATH }), '');
-  rules.push(plan.texts.rulesBody, '');
+  rules.push(plan.texts.rulesBody, '', plan.texts.noHooks, '');
   return [
     {
       path: CURSOR_MCP_PATH,

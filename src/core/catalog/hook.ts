@@ -56,6 +56,12 @@ export const hookCatalog = {
       'Le jeton n\'est jamais écrit dans ces fichiers : il vient de la variable ' +
       'd\'environnement {env}.',
     'hook.client.path': 'Chemin conseillé : {path}.',
+    'hook.client.limits': 'Limites, dites honnêtement :',
+    'hook.client.block':
+      'Règle d\'écriture : onFailure: block — si l\'app ne répond pas, l\'écriture ne part pas.',
+    'hook.client.noHooks':
+      'Ce client n\'offre pas de hook : cette règle repose sur l\'agent, pas sur un verrou ' +
+      'technique. Ce qui n\'est pas garanti est dit.',
     'hook.policy.heading': 'Politique de la session {sessionRef} sur {issueKey}.',
     'hook.policy.allowed': 'Permis sans relecture : {list}.',
     'hook.policy.human': 'Soumis à relecture humaine : {list}.',
@@ -107,6 +113,12 @@ export const hookCatalog = {
       'The token is never written to these files: it comes from the {env} environment ' +
       'variable.',
     'hook.client.path': 'Suggested path: {path}.',
+    'hook.client.limits': 'Limits, stated honestly:',
+    'hook.client.block':
+      'Write rule: onFailure: block — when the app does not answer, the write does not leave.',
+    'hook.client.noHooks':
+      'This client offers no hook: the rule relies on the agent, not on a technical lock. ' +
+      'What is not guaranteed is stated.',
     'hook.policy.heading': 'Policy of session {sessionRef} on {issueKey}.',
     'hook.policy.allowed': 'Allowed without review: {list}.',
     'hook.policy.human': 'Requires a human review: {list}.',

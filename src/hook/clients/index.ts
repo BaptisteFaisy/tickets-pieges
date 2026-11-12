@@ -83,6 +83,10 @@ export interface ClientTexts {
   policy: string;
   token: string;
   limits: string[];
+  /** Ligne de blocage à l'écriture, avec le marqueur `onFailure: block`. */
+  block: string;
+  /** À dire aux clients sans hook : la règle repose sur l'agent, pas sur un verrou. */
+  noHooks: string;
   /** Corps des fichiers de règles (Cursor, Copilot, Cline) : titre exclu. */
   rulesBody: string;
 }
@@ -188,18 +192,21 @@ function buildTexts(
     fingerprint: fingerprint ?? '',
   });
   const limits = hookLimits(language);
+  const block = t(language, 'hook.client.block');
+  const noHooks = t(language, 'hook.client.noHooks');
   const rulesBody = [
     intro,
     '',
     `- ${read}`,
     `- ${write}`,
+    `- ${block}`,
     `- ${policy}`,
     `- ${token}`,
     '',
     t(language, 'hook.client.limits'),
     ...limits.map((limit) => `- ${limit}`),
   ].join('\n');
-  return { intro, read, write, policy, token, limits, rulesBody };
+  return { intro, read, write, policy, token, limits, block, noHooks, rulesBody };
 }
 
 const RENDERERS: Record<ClientId, ClientRenderer> = {
