@@ -7,14 +7,18 @@
  * reste « à mesurer sur site ».
  */
 
-/** Étapes instrumentées du pipeline, dans l'ordre où elles se produisent. */
+/**
+ * Étapes instrumentées, dans l'ordre **réel** du pipeline : origine et couches
+ * lexicales, puis application du mode (geste synchrone de l'analyse), puis
+ * verdict de la couche C3 (asynchrone, hors du chemin de l'événement).
+ */
 export const TIMING_STAGES = [
   'created',
   'origin',
   'c1',
   'c2',
-  'c3',
   'mode-applied',
+  'c3',
 ] as const;
 
 export type TimingStage = (typeof TIMING_STAGES)[number];
@@ -43,13 +47,13 @@ export interface IntervalSpec {
   to: TimingStage;
 }
 
-/** Intervalles mesurés : de la création du ticket à chaque étape. */
+/** Intervalles mesurés : de la création du ticket à chaque étape, dans l'ordre des étapes. */
 export const TIMING_INTERVALS: readonly IntervalSpec[] = [
   { name: 'origin', from: 'created', to: 'origin' },
   { name: 'c1', from: 'created', to: 'c1' },
   { name: 'c2', from: 'created', to: 'c2' },
-  { name: 'c3', from: 'created', to: 'c3' },
   { name: 'mode', from: 'created', to: 'mode-applied' },
+  { name: 'c3', from: 'created', to: 'c3' },
 ];
 
 export function emptyTrace(issueKey: string): TimingTrace {

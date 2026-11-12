@@ -31,14 +31,14 @@ import {
 
 const T0 = Date.parse('2026-11-11T10:00:00.000Z');
 
-/** Une trace complète : chaque étape 200 ms après la précédente. */
+/** Une trace complète, dans l'ordre réel : chaque étape 200 ms après la précédente. */
 function fullTrace(step = 200): TimingTrace {
   let trace = markStage(emptyTrace('SUP-1'), 'created', T0);
   trace = markStage(trace, 'origin', T0 + step);
   trace = markStage(trace, 'c1', T0 + step * 2);
   trace = markStage(trace, 'c2', T0 + step * 3);
-  trace = markStage(trace, 'c3', T0 + step * 4);
-  return markStage(trace, 'mode-applied', T0 + step * 5);
+  trace = markStage(trace, 'mode-applied', T0 + step * 4);
+  return markStage(trace, 'c3', T0 + step * 5);
 }
 
 describe('marques d’étape', () => {
@@ -79,14 +79,15 @@ describe('durées', () => {
     expect(exposureWindowMs(trace)).toBe(MAX_DURATION_MS);
   });
 
-  it('donne les cinq intervalles, monotones de la création au mode appliqué', () => {
+  it('donne les cinq intervalles, monotones de la création au verdict C3', () => {
     const intervals = intervalsOf(fullTrace());
     expect(Object.keys(intervals)).toHaveLength(TIMING_INTERVALS.length);
     const values = TIMING_INTERVALS.map((spec) => intervals[spec.name]) as number[];
     for (let index = 1; index < values.length; index += 1) {
       expect(values[index]).toBeGreaterThanOrEqual(values[index - 1] as number);
     }
-    expect(intervals.mode).toBe(1000);
+    expect(intervals.mode).toBe(800);
+    expect(intervals.c3).toBe(1000);
   });
 });
 
