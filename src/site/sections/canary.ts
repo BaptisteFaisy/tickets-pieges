@@ -28,7 +28,8 @@ import {
   type Lure,
   type LureKind,
 } from '../../core/lure';
-import { badge, buttonHtml, field, grid, heading, kv, note, panel, pre, selectHtml, textareaHtml } from '../dom';
+import { appendEntry, verifyChain, type ChainEntry } from '../../core/canary-chain';
+import { badge, buttonHtml, field, grid, heading, kv, note, panel, pre, selectHtml, table, textareaHtml } from '../dom';
 import { byId } from '../dom';
 import type { Section, SectionContext } from './types';
 
@@ -77,6 +78,12 @@ const LABELS = {
   incident: { fr: 'Incident d’exfiltration', en: 'Exfiltration incident' },
   incidentNone: { fr: 'Aucun appât dans ce texte.', en: 'No lure found in this text.' },
   needLure: { fr: 'Déposez d’abord un appât.', en: 'Plant a lure first.' },
+  journal: { fr: 'Journal à hash chaîné', en: 'Hash-chained journal' },
+  chainVerify: { fr: 'Vérifier la chaîne', en: 'Verify the chain' },
+  chainTamper: { fr: 'Falsifier une entrée (démo)', en: 'Tamper with an entry (demo)' },
+  chainOk: { fr: 'Chaîne intègre', en: 'Chain intact' },
+  chainBroken: { fr: 'Chaîne rompue : la modification est détectée', en: 'Chain broken: tampering detected' },
+  chainEmpty: { fr: 'Aucune entrée : lancez un exercice.', en: 'No entries yet: run an exercise.' },
   hint: {
     fr: 'Tout se calcule dans votre navigateur : aucun appel réseau, rien ne quitte la page.',
     en: 'Everything runs in your browser: no network call, nothing leaves this page.',
@@ -173,6 +180,27 @@ export function leakHtml(lure: Lure | null, text: string, foundIn: string, at: s
   ].join('');
 }
 
+/** Copie où une entrée est modifiée : la démo qui prouve que la chaîne casse. */
+export function tamperedChain(chain: readonly ChainEntry[]): ChainEntry[] {
+  const index = chain.length > 1 ? 1 : 0;
+  return chain.map((entry, i) => (i === index ? { ...entry, payload: `${entry.payload} (modifié)` } : entry));
+}
+
+/** Le journal en tableau : séquence, contenu, empreinte courte. */
+export function chainTable(chain: readonly ChainEntry[]): string {
+  if (chain.length === 0) return '';
+  return table(
+    ['#', 'payload', 'hash'],
+    chain.map((entry) => [String(entry.seq), entry.payload, entry.hash.slice(0, 12)]),
+  );
+}
+
+/** Verdict de `verifyChain` : intègre, rompu, ou vide. */
+export function chainVerdictHtml(chain: readonly ChainEntry[], ctx: SectionContext): string {
+  if (chain.length === 0) return note(label(ctx, 'chainEmpty'));
+  return verifyChain(chain) ? badge(label(ctx, 'chainOk'), 'ok') : badge(label(ctx, 'chainBroken'), 'bad');
+}
+
 /** Formulaire de la section. */
 function form(ctx: SectionContext): string {
   return panel(
@@ -202,6 +230,19 @@ interface Session {
   hits: CanaryHit[];
   launched: number;
   lure: Lure | null;
+  chain: ChainEntry[];
+}
+
+/** Ajoute une entrée au journal chaîné : chaque geste de la démo y laisse une empreinte. */
+function journal(session: Session, payload: string, at: string): void {
+  const prev = session.chain[session.chain.length - 1] ?? null;
+  session.chain.push(appendEntry(prev, payload, at));
+}
+
+/** Rafraîchit le tableau du journal après chaque geste. */
+function renderChain(root: HTMLElement, session: Session): void {
+  const target = byId<HTMLDivElement>(root, 'c-chain-table');
+  if (target) target.innerHTML = chainTable(session.chain);
 }
 
 function readIssueKey(root: HTMLElement): string {
@@ -228,7 +269,9 @@ function launch(root: HTMLElement, session: Session, ctx: SectionContext): void 
   session.launched += 1;
   session.canary = outcome.ok ? outcome.canary : null;
   session.hits = [];
+  journal(session, outcome.ok ? `exercice:${outcome.labelName}` : 'exercice:refus', ctx.now);
   show(root, ctx, outcomeHtml(outcome, ctx));
+  renderChain(root, session);
   if (!outcome.ok) ctx.notify(outcome.error);
 }
 
@@ -248,8 +291,10 @@ function simulate(root: HTMLElement, session: Session, ctx: SectionContext): voi
   };
   const hit = detectHit(observation);
   if (hit) session.hits.push(hit);
+  if (hit) journal(session, `coup:${hit.actorType}`, ctx.now);
   const summary = summarizeCanary(session.canary, session.hits);
   show(root, ctx, hitHtml(summary, obedienceDepth(depthFlags(count)), session.launched, ctx));
+  renderChain(root, session);
 }
 
 /** Clôture automatique : à l'échéance, `isExpired` puis `closeCanary` (§13). */
@@ -264,7 +309,9 @@ function closeAtExpiry(root: HTMLElement, session: Session, ctx: SectionContext)
     return;
   }
   session.canary = closeCanary(session.canary, at);
+  journal(session, `cloture:${session.canary.id}`, at);
   show(root, ctx, `${badge(label(ctx, 'expired'), 'warn')}${canaryCard(session.canary, ctx)}`);
+  renderChain(root, session);
 }
 
 /** Dépose d'un appât : valeur factice et marqueur unique, liés au ticket visé (#46). */
@@ -278,13 +325,20 @@ function plant(root: HTMLElement, session: Session, ctx: SectionContext): void {
     kind,
     now: ctx.now,
   });
+  journal(session, `appat:${session.lure.marker}`, ctx.now);
   show(root, ctx, lureHtml(session.lure, ctx));
+  renderChain(root, session);
 }
 
 /** Contrôle d'un texte : l'appât qui réapparaît ailleurs est un incident (§43). */
 function checkLeak(root: HTMLElement, session: Session, ctx: SectionContext): void {
   const text = byId<HTMLTextAreaElement>(root, 'c-leak')?.value ?? '';
+  const incident = session.lure
+    ? detectLureLeak({ lure: session.lure, text, foundIn: 'export-csv', at: ctx.now })
+    : null;
+  if (incident) journal(session, `incident:${incident.lureId}`, ctx.now);
   show(root, ctx, leakHtml(session.lure, text, 'export-csv', ctx.now, ctx));
+  renderChain(root, session);
 }
 
 /** Remplit le texte suspect avec un exemple déjà compromis. */
@@ -295,17 +349,37 @@ function fillLeakSample(root: HTMLElement, session: Session, ctx: SectionContext
 }
 
 function mount(root: HTMLElement, ctx: SectionContext): void {
-  const session: Session = { canary: null, hits: [], launched: 0, lure: null };
+  const session: Session = { canary: null, hits: [], launched: 0, lure: null, chain: [] };
   byId<HTMLButtonElement>(root, 'c-launch')?.addEventListener('click', () => launch(root, session, ctx));
   byId<HTMLButtonElement>(root, 'c-simulate')?.addEventListener('click', () => simulate(root, session, ctx));
   byId<HTMLButtonElement>(root, 'c-close')?.addEventListener('click', () => closeAtExpiry(root, session, ctx));
   byId<HTMLButtonElement>(root, 'c-plant')?.addEventListener('click', () => plant(root, session, ctx));
   byId<HTMLButtonElement>(root, 'c-leak-check')?.addEventListener('click', () => checkLeak(root, session, ctx));
   byId<HTMLButtonElement>(root, 'c-leak-sample')?.addEventListener('click', () => fillLeakSample(root, session, ctx));
+  byId<HTMLButtonElement>(root, 'c-chain-verify')?.addEventListener('click', () => {
+    const verdict = byId<HTMLDivElement>(root, 'c-chain-verdict');
+    if (verdict) verdict.innerHTML = chainVerdictHtml(session.chain, ctx);
+  });
+  byId<HTMLButtonElement>(root, 'c-chain-tamper')?.addEventListener('click', () => {
+    const verdict = byId<HTMLDivElement>(root, 'c-chain-verdict');
+    if (verdict) verdict.innerHTML = chainVerdictHtml(tamperedChain(session.chain), ctx);
+  });
+}
+
+/** Panneau du journal : table dynamique + vérification + falsification. */
+function chainPanel(ctx: SectionContext): string {
+  return panel(
+    heading(label(ctx, 'journal')) +
+      `<div id="c-chain-table"></div>` +
+      `<div id="c-chain-verdict">${chainVerdictHtml([], ctx)}</div>` +
+      buttonHtml('c-chain-verify', label(ctx, 'chainVerify'), 'ghost') +
+      buttonHtml('c-chain-tamper', label(ctx, 'chainTamper'), 'ghost'),
+    'c-chain-panel',
+  );
 }
 
 function render(ctx: SectionContext): string {
-  return grid(form(ctx), panel(note(label(ctx, 'empty')), 'c-result'));
+  return grid(form(ctx), panel(note(label(ctx, 'empty')), 'c-result')) + chainPanel(ctx);
 }
 
 export const canarySection: Section = {
