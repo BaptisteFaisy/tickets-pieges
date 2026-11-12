@@ -57,6 +57,10 @@ modules:
     - key: ops
       handler: index.opsTrigger
 
+    # Diagnostic de l'app par elle-même (lot 10) : l'app rend son propre état.
+    - key: diagnostic
+      handler: index.diagnostic
+
     # Les dix outils MCP (§16) : une fonction par outil.
     - key: getRequestSafe
       handler: index.getRequestSafe
@@ -238,6 +242,14 @@ modules:
       function: smoke-test
     - key: pieges-ops
       function: ops
+
+    # Diagnostic (lot 10) : un **seul** module de ce type, comme pour la page
+    # globale — la plateforme n'accepte pas deux webtriggers de même nature.
+    - key: pieges-diagnostic
+      function: diagnostic
+      urlFormat: v2
+      response:
+        type: dynamic
 
   # ------------------------------------------------------------- actions (§16)
   action:

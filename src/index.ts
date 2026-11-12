@@ -18,6 +18,9 @@ export { dailyMaintenance, weeklyReport } from './jobs/scheduled';
 // Hook et diagnostic (§11, §17.7) — lot Hook.
 export { inboundHook, outboundHook, smokeTrigger, opsTrigger } from './jobs/webhook';
 
+// Diagnostic de l'app par elle-même (lot 10) : un webtrigger, un handler.
+export { diagnostic } from './jobs/diagnostic';
+
 // Outils MCP (§16) — lot MCP.
 export {
   getRequestSafe,
