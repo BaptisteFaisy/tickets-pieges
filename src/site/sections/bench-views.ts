@@ -10,6 +10,7 @@ import type { CorpusEntry, CorpusStats } from '../../bench/corpus';
 import { benchGapLines } from '../../bench/detector';
 import type { MutationId, RobustnessReport } from '../../bench/fuzz';
 import { noisiestRules, round, type Confusion, type CorpusMetrics } from '../../bench/metrics';
+import type { DivergenceCode, ShadowReport } from '../../bench/shadow';
 import type { Language, LayerHit } from '../../core/types';
 import { badge, code, details, heading, kv, list, note, pre, table } from '../dom';
 
@@ -217,4 +218,53 @@ export function fuzzView(report: RobustnessReport, examples: readonly BrokenExam
     summary +
     mutationsTable(report, lang) +
     details(fr ? 'Exemples avant/après (une cassure par mutation)' : 'Before/after examples (one break per mutation)', blocks, true);
+}
+
+/** Libellé bilingue des codes de divergence du mode shadow (#17). */
+export function divergenceLabel(code: DivergenceCode, lang: Language): string {
+  const labels: Record<DivergenceCode, [string, string]> = {
+    'machine-silent-human-trapped': ['Machine muette sur charge confirmée', 'Machine silent on confirmed attack'],
+    'machine-acted-human-false-positive': ['Machine active sur faux positif', 'Machine acted on false positive'],
+    'machine-acted-human-legitimate-risky': ['Machine active sur risque légitime', 'Machine acted on legitimate risk'],
+    'human-pending': ['Sans verdict humain', 'No human verdict'],
+    none: ['Accord machine / humain', 'Machine / human agreement'],
+  };
+  const pair = labels[code];
+  return lang === 'fr' ? pair[0] : pair[1];
+}
+
+/** Tableau des divergences observées, codes à zéro exclus. */
+function divergenceTable(report: ShadowReport, lang: Language): string {
+  const codes = Object.keys(report.byDivergence).sort() as DivergenceCode[];
+  const rows = codes
+    .map((code): [DivergenceCode, number] => [code, report.byDivergence[code] ?? 0])
+    .filter(([, count]) => count > 0)
+    .map(([code, count]) => [divergenceLabel(code, lang), code, String(count)]);
+  if (rows.length === 0) return note(lang === 'fr' ? 'Aucune divergence observée.' : 'No divergence observed.');
+  const head = lang === 'fr' ? ['Divergence', 'Code', 'Entrées'] : ['Divergence', 'Code', 'Entries'];
+  return table(head, rows);
+}
+
+/** Bloc shadow : taux d'accord, gestes proposés/appliqués, divergences, honnêteté. */
+export function shadowView(report: ShadowReport, lang: Language): string {
+  const fr = lang === 'fr';
+  const summary = kv([
+    [fr ? 'Entrées comparées' : 'Compared entries', `${report.compared} / ${report.total}`],
+    [fr ? 'Taux d’accord machine / humain' : 'Machine / human agreement rate', pct(report.agreementRate, lang)],
+    [fr ? 'Désaccords' : 'Disagreements', String(report.disagreements)],
+    [fr ? 'Sans verdict humain' : 'Without human verdict', String(report.unknown)],
+    [fr ? 'Gestes proposés' : 'Proposed actions', String(report.proposedActions)],
+    [fr ? 'Gestes appliqués' : 'Applied actions', `${report.appliedActions} — ${fr ? 'le shadow n’écrit rien' : 'shadow writes nothing'}`],
+  ]);
+  const ids = list([
+    `${fr ? 'Charges manquées par la machine' : 'Attacks missed by the machine'} (${report.missedIds.length}) : ${report.missedIds.join(', ') || (fr ? 'aucune' : 'none')}`,
+    `${fr ? 'Faux positifs confirmés' : 'Confirmed false positives'} (${report.noisyIds.length}) : ${report.noisyIds.join(', ') || (fr ? 'aucun' : 'none')}`,
+  ]);
+  return heading(fr ? 'Mode shadow — comparaison machine / humain (#17)' : 'Shadow mode — machine / human comparison (#17)') +
+    summary +
+    divergenceTable(report, lang) +
+    details(fr ? 'Divergences : entrées concernées' : 'Divergences: concerned entries', ids) +
+    note(fr
+      ? 'Référence humaine hors ligne : les étiquettes du corpus, pas de verdict humain réel.'
+      : 'Offline human reference: corpus labels, no real human verdict.');
 }

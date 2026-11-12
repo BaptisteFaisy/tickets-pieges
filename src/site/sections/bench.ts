@@ -13,8 +13,9 @@ import { corpusStats, type CorpusEntry } from '../../bench/corpus';
 import { createDetector, detectEntry } from '../../bench/detector';
 import { measureRobustness, mutateEntry, type MutationId, type MutationOptions, type RobustnessReport } from '../../bench/fuzz';
 import { measureCorpus, type CorpusMetrics } from '../../bench/metrics';
+import { createRecordingPort, runShadow, type ShadowReport } from '../../bench/shadow';
 import { byId, buttonHtml, field, grid, heading, note, panel, selectHtml, valueOf } from '../dom';
-import { familyKeys, filterEntries, fullCorpus, PLAYED_CAP, playedEntries } from './bench-corpus';
+import { familyKeys, filterEntries, fullCorpus, humanReference, PLAYED_CAP, playedEntries } from './bench-corpus';
 import {
   corpusOptions,
   entryView,
@@ -23,6 +24,7 @@ import {
   gapsView,
   headerView,
   metricsView,
+  shadowView,
   type BrokenExample,
 } from './bench-views';
 import type { Section, SectionContext } from './types';
@@ -58,6 +60,7 @@ export interface BenchRun {
   readonly metrics: CorpusMetrics;
   readonly robustness: RobustnessReport;
   readonly examples: readonly BrokenExample[];
+  readonly shadow: ShadowReport;
 }
 
 /** Premier exemple avant/après par mutation, parmi les mutants qui cassent. */
@@ -88,11 +91,13 @@ export function playBench(entries: readonly CorpusEntry[]): BenchRun {
   const detect = createDetector();
   const fuzzOptions: MutationOptions = { seed: FUZZ_SEED, maxPerEntry: FUZZ_MAX_PER_ENTRY };
   const robustness = measureRobustness(entries, detect, fuzzOptions);
+  const shadow = runShadow(entries, detect, humanReference(entries), createRecordingPort());
   return {
     played: entries.length,
     metrics: measureCorpus(entries, detect),
     robustness,
     examples: brokenExamples(entries, robustness, fuzzOptions),
+    shadow,
   };
 }
 
@@ -146,7 +151,8 @@ function run(root: HTMLElement, ctx: SectionContext): void {
     headerView(corpusStats(fullCorpus()), outcome.played, PLAYED_CAP, elapsed, ctx.lang) +
     gapsView(ctx.lang) +
     metricsView(outcome.metrics, ctx.lang) +
-    fuzzView(outcome.robustness, outcome.examples, ctx.lang);
+    fuzzView(outcome.robustness, outcome.examples, ctx.lang) +
+    shadowView(outcome.shadow, ctx.lang);
 }
 
 /** Formulaire : filtres du corpus, entrée navigable, bouton de rejeu. */

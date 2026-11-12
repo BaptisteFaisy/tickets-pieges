@@ -24,6 +24,7 @@ import {
   type CorpusEntry,
   type CorpusFile,
 } from '../../bench/corpus';
+import type { HumanVerdict } from '../../bench/shadow';
 
 const FILES = [attacksFr, attacksEn, legitimateFr, legitimateEn, scenarioCato] as unknown as CorpusFile[];
 
@@ -56,4 +57,17 @@ export function filterEntries(lang: string, family: string): CorpusEntry[] {
 /** Ce que le banc joue dans la page : le filtre, borné à `PLAYED_CAP` entrées. */
 export function playedEntries(lang: string, family: string): CorpusEntry[] {
   return sampleCorpus(filterEntries(lang, family), PLAYED_CAP, PLAYED_SEED);
+}
+
+/**
+ * Référence humaine hors ligne : les étiquettes du corpus, **dites comme
+ * telles** (même convention que `tools/bench.mjs`) — aucun verdict humain
+ * réel n'existe dans le navigateur, et la vue le déclare (§21).
+ */
+export function humanReference(entries: readonly CorpusEntry[]): Record<string, HumanVerdict> {
+  const verdicts: Record<string, HumanVerdict> = {};
+  for (const entry of entries) {
+    verdicts[entry.id] = entry.label === 'attack' ? 'trapped' : 'false-positive';
+  }
+  return verdicts;
 }
