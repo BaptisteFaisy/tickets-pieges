@@ -59,12 +59,26 @@ export interface ConfluenceCommentView {
   createdAt: string;
 }
 
+/** Pièce jointe d'une page : son texte n'est pas extrait ici (lot fichiers). */
+export interface ConfluenceAttachmentView {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  author: AccountSnapshot;
+  createdAt: string;
+}
+
 /** Ce dont les jobs ont besoin côté Confluence — implémenté par le port REST. */
 export interface ConfluencePort {
   getPage(pageId: string): Promise<ConfluencePageView>;
   listComments(pageId: string): Promise<ConfluenceCommentView[]>;
+  listAttachments(pageId: string): Promise<ConfluenceAttachmentView[]>;
   addComment(pageId: string, body: string): Promise<string>;
+  updateComment(commentId: string, body: string): Promise<void>;
   updatePageBody(pageId: string, title: string, body: string, version: number): Promise<void>;
+  setProperty(pageId: string, key: string, value: unknown): Promise<void>;
+  addLabel(pageId: string, name: string): Promise<void>;
 }
 
 // ------------------------------------------------------------- identité (TP-26)
@@ -181,6 +195,34 @@ export function confluenceSegments(
   return segments.filter((segment) => segment.text.length > 0);
 }
 
+/** Rend du texte brut au format storage (XHTML) : écriture de bandeau, neutralisation. */
+export function textToStorage(text: string): string {
+  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return escaped
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => `<p>${line}</p>`)
+    .join('');
+}
+
+/** Pièce jointe REST v1 (`metadata.mediaType`, `extensions.size`). */
+export function parseAttachment(raw: unknown): ConfluenceAttachmentView {
+  const file = asRecord(raw);
+  const metadata = asRecord(file.metadata);
+  const extensions = asRecord(file.extensions);
+  const version = asRecord(file.version);
+  const history = asRecord(file.history);
+  return {
+    id: stringOf(file.id),
+    fileName: stringOf(file.title),
+    mimeType: stringOf(metadata.mediaType, 'application/octet-stream'),
+    sizeBytes: typeof extensions.size === 'number' ? extensions.size : 0,
+    author: toConfluenceSnapshot(userOf(version.by, file.author)),
+    createdAt: stringOf(version.when, stringOf(history.createdDate)),
+  };
+}
+
 // ------------------------------------------------------------- parsing REST brut
 
 type Json = Record<string, unknown>;
@@ -264,6 +306,12 @@ function storagePayload(value: string): string {
  * devient une vue vide — jamais d'exception non maîtrisée dans un handler.
  */
 export function createConfluencePort(invoker: ConfluenceInvoker): ConfluencePort {
+  return { ...portReaders(invoker), ...portWriters(invoker) };
+}
+
+function portReaders(
+  invoker: ConfluenceInvoker,
+): Pick<ConfluencePort, 'getPage' | 'listComments' | 'listAttachments'> {
   return {
     async getPage(pageId) {
       const raw = await invoker(`${contentPath(pageId)}?expand=${PAGE_EXPAND}`);
@@ -273,12 +321,30 @@ export function createConfluencePort(invoker: ConfluenceInvoker): ConfluencePort
       const raw = await invoker(`${contentPath(pageId)}/child/comment?expand=${COMMENT_EXPAND}`);
       return parseResults(raw).map((entry) => parseComment(entry));
     },
+    async listAttachments(pageId) {
+      const raw = await invoker(`${contentPath(pageId)}/child/attachment`);
+      return parseResults(raw).map((entry) => parseAttachment(entry));
+    },
+  };
+}
+
+function portWriters(
+  invoker: ConfluenceInvoker,
+): Pick<ConfluencePort, 'addComment' | 'updateComment' | 'updatePageBody' | 'setProperty' | 'addLabel'> {
+  return {
     async addComment(pageId, body) {
       const raw = await invoker(`${contentPath(pageId)}/child/comment`, {
         method: 'POST',
         body: storagePayload(body),
       });
       return stringOf(asRecord(raw).id);
+    },
+    async updateComment(commentId, body) {
+      const current = await invoker(`${contentPath(commentId)}?expand=version`);
+      await invoker(contentPath(commentId), {
+        method: 'PUT',
+        body: commentPayload(commentId, body, versionNumberOf(current) + 1),
+      });
     },
     async updatePageBody(pageId, title, body, version) {
       const payload = JSON.stringify({
@@ -290,5 +356,32 @@ export function createConfluencePort(invoker: ConfluenceInvoker): ConfluencePort
       });
       await invoker(contentPath(pageId), { method: 'PUT', body: payload });
     },
+    async setProperty(pageId, key, value) {
+      await invoker(propertyPath(pageId, key), { method: 'PUT', body: JSON.stringify(value) });
+    },
+    async addLabel(pageId, name) {
+      await invoker(`${contentPath(pageId)}/label`, {
+        method: 'POST',
+        body: JSON.stringify({ prefix: 'global', name }),
+      });
+    },
   };
+}
+
+function versionNumberOf(raw: unknown): number {
+  const number = asRecord(asRecord(raw).version).number;
+  return typeof number === 'number' ? number : 1;
+}
+
+function commentPayload(commentId: string, body: string, version: number): string {
+  return JSON.stringify({
+    id: commentId,
+    type: 'comment',
+    version: { number: version },
+    body: { storage: { value: body, representation: 'storage' } },
+  });
+}
+
+function propertyPath(pageId: string, key: string): string {
+  return `/wiki/rest/api/content/${encodeURIComponent(pageId)}/property/${encodeURIComponent(key)}`;
 }
