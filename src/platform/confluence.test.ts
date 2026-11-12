@@ -13,13 +13,26 @@ import {
   MAX_STORAGE_CHARS,
   pageIssueId,
   pageIssueKey,
+  parseAttachment,
   parseComment,
   parsePage,
   parseResults,
   storageToText,
+  textToStorage,
   toConfluenceSnapshot,
 } from './confluence';
 import type { ConfluenceCommentView, ConfluencePageView } from './confluence';
+
+/** Invoker de test : répond selon le préfixe de chemin et garde l'historique. */
+function fakeInvoker(routes: Record<string, unknown>) {
+  const calls: Array<{ path: string; init?: { method?: string; body?: string } }> = [];
+  const invoker = async (path: string, init?: { method?: string; body?: string }) => {
+    calls.push({ path, init });
+    const key = Object.keys(routes).find((prefix) => path.startsWith(prefix));
+    return key === undefined ? null : routes[key];
+  };
+  return { invoker, calls };
+}
 
 // ----------------------------------------------------------------- identité
 
@@ -207,16 +220,6 @@ describe('origine des segments Confluence (§5)', () => {
 // --------------------------------------------------------------------- port
 
 describe('port Confluence sur invoker injecté', () => {
-  function fakeInvoker(routes: Record<string, unknown>) {
-    const calls: Array<{ path: string; init?: { method?: string; body?: string } }> = [];
-    const invoker = async (path: string, init?: { method?: string; body?: string }) => {
-      calls.push({ path, init });
-      const key = Object.keys(routes).find((prefix) => path.startsWith(prefix));
-      return key === undefined ? null : routes[key];
-    };
-    return { invoker, calls };
-  }
-
   it('getPage appelle le bon chemin et convertit', async () => {
     const { invoker, calls } = fakeInvoker({ '/wiki/rest/api/content/98765': { id: '98765', title: 'T' } });
     const port = createConfluencePort(invoker);
@@ -246,5 +249,81 @@ describe('port Confluence sur invoker injecté', () => {
     await createConfluencePort(invoker).updatePageBody('98765', 'T', 'corps', 3);
     expect(calls[0]?.init?.method).toBe('PUT');
     expect(calls[0]?.init?.body).toContain('"number":4');
+  });
+});
+
+// ------------------------------------------------------- texte vers storage
+
+describe('texte brut vers storage', () => {
+  it('échappe le XHTML et découpe en paragraphes', () => {
+    expect(textToStorage('a & b\n<c>\n\nd')).toBe('<p>a &amp; b</p><p>&lt;c&gt;</p><p>d</p>');
+  });
+
+  it('un texte vide rend une chaîne vide', () => {
+    expect(textToStorage('  \n ')).toBe('');
+  });
+});
+
+// ------------------------------------------------------------- pièce jointe
+
+describe('pièce jointe Confluence', () => {
+  it('lit le type, la taille et l\'auteur', () => {
+    const file = parseAttachment({
+      id: 'f-1',
+      title: 'plan.pdf',
+      metadata: { mediaType: 'application/pdf' },
+      extensions: { size: 1234 },
+      version: { when: '2026-11-01T00:00:00.000Z', by: { isGuest: true } },
+    });
+    expect(file.fileName).toBe('plan.pdf');
+    expect(file.mimeType).toBe('application/pdf');
+    expect(file.sizeBytes).toBe(1234);
+    expect(file.author.accountType).toBe('unknown');
+    expect(file.createdAt).toBe('2026-11-01T00:00:00.000Z');
+  });
+
+  it('des métadonnées absentes donnent des valeurs sûres', () => {
+    const file = parseAttachment({});
+    expect(file.mimeType).toBe('application/octet-stream');
+    expect(file.sizeBytes).toBe(0);
+  });
+});
+
+// ------------------------------------------------------------- port étendu
+
+describe('port Confluence étendu', () => {
+  it('listAttachments convertit chaque entrée', async () => {
+    const { invoker, calls } = fakeInvoker({
+      '/wiki/rest/api/content/98765': { results: [{ id: 'f-1', title: 'a.png' }] },
+    });
+    const files = await createConfluencePort(invoker).listAttachments('98765');
+    expect(files.map((f) => f.id)).toEqual(['f-1']);
+    expect(calls[0]?.path).toContain('/child/attachment');
+  });
+
+  it('updateComment lit la version courante puis PUT avec version+1', async () => {
+    const { invoker, calls } = fakeInvoker({
+      '/wiki/rest/api/content/c-1': { id: 'c-1', version: { number: 7 } },
+    });
+    await createConfluencePort(invoker).updateComment('c-1', '<p>nettoyé</p>');
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.init?.method).toBe('PUT');
+    expect(calls[1]?.init?.body).toContain('"number":8');
+  });
+
+  it('setProperty écrit sur le chemin property', async () => {
+    const { invoker, calls } = fakeInvoker({ '/wiki/rest/api/content/98765': null });
+    await createConfluencePort(invoker).setProperty('98765', 'pieges', { trustLevel: 'T0' });
+    expect(calls[0]?.path).toBe('/wiki/rest/api/content/98765/property/pieges');
+    expect(calls[0]?.init?.method).toBe('PUT');
+    expect(calls[0]?.init?.body).toContain('T0');
+  });
+
+  it('addLabel poste un libellé global', async () => {
+    const { invoker, calls } = fakeInvoker({ '/wiki/rest/api/content/98765': null });
+    await createConfluencePort(invoker).addLabel('98765', 'pieges-suspicion');
+    expect(calls[0]?.path).toContain('/label');
+    expect(calls[0]?.init?.body).toContain('global');
+    expect(calls[0]?.init?.body).toContain('pieges-suspicion');
   });
 });
