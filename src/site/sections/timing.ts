@@ -14,9 +14,13 @@
  */
 
 import {
+  TIMING_INTERVALS,
   emptyTrace,
+  exposureWindowMs,
   formatMs,
+  intervalsOf,
   markStage,
+  type TimingInterval,
   type TimingStage,
   type TimingTrace,
 } from '../../core/timing';
@@ -51,6 +55,7 @@ const LABELS = {
   step: { fr: 'Étape', en: 'Step' },
   outputs: { fr: 'Productions', en: 'Outputs' },
   duration: { fr: 'Durée', en: 'Duration' },
+  status: { fr: 'Statut', en: 'Status' },
   notPlayed: { fr: 'non jouée', en: 'not played' },
   boundNote: {
     fr: 'Durées relevées dans votre navigateur sur un rejeu hors ligne : une seule '
@@ -69,9 +74,46 @@ const LABELS = {
       + 'exposure window: how long externally supplied text stays visible before '
       + 'the mode is applied (§18).',
   },
+  windowTitle: {
+    fr: 'Fenêtre d’exposition instrumentée (§18)',
+    en: 'Instrumented exposure window (§18)',
+  },
+  exposureWindow: {
+    fr: 'Fenêtre d’exposition (création → mode appliqué)',
+    en: 'Exposure window (created → mode applied)',
+  },
+  interval: { fr: 'Intervalle', en: 'Interval' },
+  measuredHere: { fr: 'mesuré ici (borne)', en: 'measured here (bound)' },
+  toMeasure: { fr: 'à mesurer sur site', en: 'to measure on site' },
+  intervalsNote: {
+    fr: 'Hors ligne, origine, C1, C2 et mode ne sont pas datés séparément : la fin '
+      + 'du rejeu borne les quatre (docs/MESURES.md §3). Le verdict C3 n’est pas '
+      + 'joué dans le navigateur — il reste « à mesurer sur site ».',
+    en: 'Offline, origin, C1, C2 and mode are not dated separately: the end of the '
+      + 'replay bounds all four (docs/MESURES.md §3). The C3 verdict is not played '
+      + 'in the browser — it stays “to measure on site”.',
+  },
 } as const;
 
 type LabelKey = keyof typeof LABELS;
+
+/** Libellés bilingues des intervalles de `src/core/timing.ts` (règle 9). */
+export const INTERVAL_NAMES_UI: Record<'fr' | 'en', Record<TimingInterval, string>> = {
+  fr: {
+    origin: 'origine écrite',
+    c1: 'couche C1 (dissimulation)',
+    c2: 'couche C2 (adresse à une IA)',
+    mode: 'mode appliqué — fenêtre d’exposition',
+    c3: 'verdict C3 (file asynchrone)',
+  },
+  en: {
+    origin: 'origin written',
+    c1: 'layer C1 (concealment)',
+    c2: 'layer C2 (AI addressing)',
+    mode: 'mode applied — exposure window',
+    c3: 'C3 verdict (async queue)',
+  },
+};
 
 function label(ctx: SectionContext, key: LabelKey): string {
   return LABELS[key][ctx.lang];
@@ -164,9 +206,28 @@ function controls(ctx: SectionContext): string {
   );
 }
 
+/** Tableau des intervalles mesurés : durée ou « à mesurer sur site ». */
+export function intervalsTable(m: SampleMeasure, ctx: SectionContext): string {
+  const intervals = intervalsOf(m.trace);
+  const names = INTERVAL_NAMES_UI[ctx.lang];
+  const rows = TIMING_INTERVALS.map((spec): [string, string, string] => {
+    const value = intervals[spec.name];
+    return value === null
+      ? [names[spec.name], label(ctx, 'toMeasure'), badge(label(ctx, 'toMeasure'), 'warn')]
+      : [names[spec.name], `≤ ${formatMs(value)}`, badge(label(ctx, 'measuredHere'), 'ok')];
+  });
+  const window = exposureWindowMs(m.trace);
+  return (
+    heading(label(ctx, 'windowTitle'))
+    + kv([[label(ctx, 'exposureWindow'), formatMs(window)]])
+    + table([label(ctx, 'interval'), label(ctx, 'duration'), label(ctx, 'status')], rows, true)
+    + note(label(ctx, 'intervalsNote'))
+  );
+}
+
 /** Tout le résultat d'une mesure locale. */
 export function results(m: SampleMeasure, ctx: SectionContext): string {
-  return measureHead(m, ctx) + stepsTable(m, ctx);
+  return measureHead(m, ctx) + intervalsTable(m, ctx) + stepsTable(m, ctx);
 }
 
 /** Câblage : le bouton rejoue la demande choisie et rafraîchit le résultat. */
