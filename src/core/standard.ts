@@ -131,9 +131,14 @@ export function parseDonnee(text: string): ParseDonneeResult {
   if (!attributes) {
     return { ok: false, reason: 'bad-attributes' };
   }
+  let body = rest.slice(0, closeMatch.index);
+  // Le rendu encadre le corps d'un saut de ligne de chaque côté ; on retire
+  // ces deux délimiteurs, le reste est restitué tel quel.
+  if (body.startsWith('\n')) body = body.slice(1);
+  if (body.endsWith('\n')) body = body.slice(0, -1);
   return {
     ok: true,
-    block: { id, attributes, body: rest.slice(0, closeMatch.index) },
+    block: { id, attributes, body },
   };
 }
 
