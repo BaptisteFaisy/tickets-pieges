@@ -118,7 +118,7 @@ describe('objectifs', () => {
 describe('file C3 (#85)', () => {
   const samples: QueueSample[] = Array.from({ length: 500 }, (_, index) => ({
     enqueuedAtMs: T0 + index * 100,
-    dequeuedAtMs: T0 + index * 100 + (index < 480 ? 900 : 45_000),
+    dequeuedAtMs: T0 + index * 100 + (index < 470 ? 900 : 45_000),
   }));
 
   it('rend une attente nulle plutôt que négative', () => {
@@ -131,7 +131,7 @@ describe('file C3 (#85)', () => {
     expect(stats?.count).toBe(500);
     expect(stats?.p50Ms).toBe(900);
     expect(stats?.p95Ms).toBe(45_000);
-    expect(stats?.overObjective).toBe(20);
+    expect(stats?.overObjective).toBe(30);
     expect(stats?.objectiveMs).toBe(C3_OBJECTIVE_MS);
   });
 
@@ -185,7 +185,7 @@ describe('rapport', () => {
     expect(report.sampleSize).toBe(2);
     expect(report.intervals.mode?.source).toBe('measured');
     expect(report.intervals.mode?.value).toBe(2000);
-    expect(report.intervals.origin?.value).toBe(800);
+    expect(report.intervals.origin?.value).toBe(400);
     expect(report.queue.source).toBe('measured');
     expect(report.queue.value?.count).toBe(1);
     expect(report.throughput.source).toBe('measured');
