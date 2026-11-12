@@ -60,24 +60,33 @@ function parseArgs(argv) {
   return options;
 }
 
+/** L'index de la ligne qui vaut exactement `marker` (marqueur seul sur sa ligne). */
+function markerLine(text, marker) {
+  const lines = text.split('\n');
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index].trim() === marker) return index;
+  }
+  return -1;
+}
+
 /** Le bloc généré du document, ou `null` s'il est absent. */
 function readGeneratedBlock(text) {
-  const begin = text.indexOf(BEGIN_MARK);
-  const end = text.indexOf(END_MARK);
-  if (begin < 0 || end < 0 || end < begin) return null;
-  return text.slice(begin + BEGIN_MARK.length, end).trim();
+  const begin = markerLine(text, BEGIN_MARK);
+  const end = markerLine(text, END_MARK);
+  if (begin < 0 || end < 0 || end <= begin) return null;
+  const lines = text.split('\n');
+  return lines.slice(begin + 1, end).join('\n').trim();
 }
 
 /** Réécrit le bloc généré du document, en gardant le reste intact. */
 function writeGeneratedBlock(text, table) {
-  const begin = text.indexOf(BEGIN_MARK);
-  const end = text.indexOf(END_MARK);
-  if (begin < 0 || end < 0 || end < begin) {
-    throw new Error(`le document doit contenir ${BEGIN_MARK} et ${END_MARK}`);
+  const begin = markerLine(text, BEGIN_MARK);
+  const end = markerLine(text, END_MARK);
+  if (begin < 0 || end < 0 || end <= begin) {
+    throw new Error(`le document doit porter ${BEGIN_MARK} et ${END_MARK}, chacun seul sur sa ligne`);
   }
-  const head = text.slice(0, begin + BEGIN_MARK.length);
-  const tail = text.slice(end);
-  return `${head}\n${table}\n${tail}`;
+  const lines = text.split('\n');
+  return [...lines.slice(0, begin + 1), table, ...lines.slice(end)].join('\n');
 }
 
 /** Assemble le rapport : lecture du document des exigences, contrôle, tableau. */

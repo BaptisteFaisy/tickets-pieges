@@ -152,12 +152,14 @@ export function describeGap(view: GapView): string {
   const parts: string[] = [];
   if (view.missingModules.length > 0) {
     parts.push(`module(s) absent(s) : ${view.missingModules.join(', ')}`);
+  } else if (view.modules.length === 0) {
+    parts.push('aucun module cité');
   }
   if (view.missingTests.length > 0) {
     parts.push(`test(s) absent(s) : ${view.missingTests.join(', ')}`);
+  } else if (view.tests.length === 0) {
+    parts.push('aucun test cité');
   }
-  if (view.modules.length === 0) parts.push('aucun module cité');
-  if (view.tests.length === 0) parts.push('aucun test cité');
   if (view.reste) parts.push(view.reste);
   return parts.join(' ; ');
 }
