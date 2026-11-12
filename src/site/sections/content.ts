@@ -25,8 +25,16 @@ import {
 import { CONFUSABLE_COUNT, findLookalikes, type Lookalike } from '../../core/homoglyphs';
 import { detectLanguage, type DetectionLanguage } from '../../core/langues';
 import type { Language, LayerHit } from '../../core/types';
-import { badge, buttonHtml, details, field, grid, heading, note, panel, table, textareaHtml } from '../dom';
+import {
+  coverageSeverity,
+  hasUnanalyzed,
+  summarizeUnanalyzed,
+  type UnanalyzedCoverage,
+  type UnanalyzedPart,
+} from '../../core/unanalyzed';
+import { badge, buttonHtml, details, field, grid, heading, kv, note, panel, table, textareaHtml } from '../dom';
 import { extractPanel, runDocx, runPdf } from './content-extract';
+import { buildMinimalDocx, buildMinimalPdf, bytesOf } from './content-files';
 import type { Section, SectionContext } from './types';
 
 /** Textes visibles de la section, dans les deux langues. */
@@ -81,6 +89,14 @@ const LABELS = {
   noLookalike: {
     fr: 'Aucun hôte lookalike dans ce texte.',
     en: 'No lookalike host in this text.',
+  },
+  coverage: {
+    fr: 'Part non analysée — chiffrée, jamais devinée',
+    en: 'Unanalysed share — quantified, never guessed',
+  },
+  coverageNote: {
+    fr: 'Ce que le produit n’a pas pu lire est déclaré tel quel : parties, octets, formats, raisons. Le ticket de démo porte trois pièces analysables (le texte saisi, le PDF et le DOCX construits sur place) et trois pièces non analysables.',
+    en: 'What the product could not read is declared as-is: parts, bytes, formats, reasons. The demo ticket carries three analysable pieces (the pasted text, the PDF and the DOCX built in place) and three unanalysable ones.',
   },
 } as const;
 
@@ -241,6 +257,55 @@ export function decodeView(analysis: ContentAnalysis, ctx: SectionContext): stri
     ${details(label(ctx, 'shorteners'), shorteners, true)}</div>`;
 }
 
+/** Pièces d'un ticket de démonstration que la plateforme déclare non analysées. */
+const DEMO_UNANALYZED: readonly UnanalyzedPart[] = [
+  { id: 'capture-ecran.png', format: 'image', bytes: 245_760, reason: 'image' },
+  { id: 'export-donnees.bin', format: 'binary-attachment', bytes: 1_258_291, reason: 'binary-attachment' },
+  { id: 'archive-complete.zip', format: 'unsupported', bytes: 52_428_800, reason: 'oversize' },
+];
+
+/** Couverture du ticket de démo : texte saisi + PDF + DOCX construits sont analysés. */
+export function demoCoverage(textBytes: number): UnanalyzedCoverage {
+  const analyzedBytes = Math.max(0, textBytes) + buildMinimalPdf().length + buildMinimalDocx().length;
+  return summarizeUnanalyzed([...DEMO_UNANALYZED], { analyzedParts: 3, analyzedBytes });
+}
+
+/** Bloc « part non analysée » : parties, octets, formats, raisons, sévérité. */
+export function coverageView(coverage: UnanalyzedCoverage, ctx: SectionContext, parts: readonly UnanalyzedPart[] = []): string {
+  const fr = ctx.lang === 'fr';
+  const severity = coverageSeverity(coverage);
+  const tone = severity === 'none' ? 'ok' : severity === 'high' ? 'bad' : 'warn';
+  const pct = (share: number): string => `${(share * 100).toFixed(1)} %`;
+  const head = [
+    badge(`${fr ? 'sévérité' : 'severity'} : ${severity}`, tone),
+    badge(`${coverage.parts} ${fr ? 'partie(s) non analysée(s)' : 'unanalysed part(s)'}`, hasUnanalyzed(coverage) ? 'warn' : 'ok'),
+  ].join(' ');
+  const stats = kv([
+    [fr ? 'Parties analysées' : 'Analysed parts', String(coverage.analyzedParts)],
+    [fr ? 'Octets analysés' : 'Analysed bytes', String(coverage.analyzedBytes)],
+    [fr ? 'Octets non analysés' : 'Unanalysed bytes', String(coverage.bytes)],
+    [fr ? 'Part non analysée (octets)' : 'Unanalysed share (bytes)', pct(coverage.byteShare)],
+    [fr ? 'Part non analysée (parties)' : 'Unanalysed share (parts)', pct(coverage.partShare)],
+  ]);
+  const pieces = parts.length > 0
+    ? table(
+        fr ? ['Pièce', 'Format', 'Octets', 'Raison'] : ['Part', 'Format', 'Bytes', 'Reason'],
+        parts.map((part) => [part.id, part.format, String(part.bytes), part.reason]),
+      )
+    : '';
+  const formats = table(
+    fr ? ['Format', 'Parties', 'Octets'] : ['Format', 'Parts', 'Bytes'],
+    coverage.formats.map((share) => [share.format, String(share.parts), String(share.bytes)]),
+  );
+  const reasons = table(
+    fr ? ['Raison', 'Parties', 'Octets'] : ['Reason', 'Parts', 'Bytes'],
+    coverage.reasons.map((share) => [share.reason, String(share.parts), String(share.bytes)]),
+  );
+  return `<div class="block">${heading(label(ctx, 'coverage'))}
+    <div class="verdict">${head}</div>${stats}${pieces}${formats}${reasons}
+    ${note(label(ctx, 'coverageNote'))}</div>`;
+}
+
 /** Formulaire de la section. */
 function form(ctx: SectionContext): string {
   return panel(
@@ -254,8 +319,10 @@ function form(ctx: SectionContext): string {
 function run(root: HTMLElement, ctx: SectionContext): void {
   const target = root.querySelector<HTMLDivElement>('#c-result');
   if (!target) return;
-  const analysis = analyzeContent(readText(root), ctx.lang);
-  target.innerHTML = langView(analysis, ctx) + homoglyphView(analysis, ctx) + decodeView(analysis, ctx);
+  const text = readText(root);
+  const analysis = analyzeContent(text, ctx.lang);
+  target.innerHTML = langView(analysis, ctx) + homoglyphView(analysis, ctx) +
+    decodeView(analysis, ctx) + coverageView(demoCoverage(bytesOf(text).length), ctx, DEMO_UNANALYZED);
 }
 
 function render(ctx: SectionContext): string {
