@@ -31,3 +31,6 @@ export {
   reportSuspicion,
   getExposureReport,
 } from './mcp/actions';
+
+// Confluence (#61, TP-26) — lot Confluence : un handler, quatre déclencheurs.
+export { confluenceContentEvent } from './jobs/confluence';
