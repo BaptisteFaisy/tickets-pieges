@@ -74,8 +74,8 @@ async function main() {
   mkdirSync(resolve(target, 'assets'), { recursive: true });
 
   await build({
-    entryPoints: [resolve(ROOT, 'site/demo.ts')],
-    outfile: resolve(target, 'assets/demo.js'),
+    entryPoints: [resolve(ROOT, 'src/site/app.ts')],
+    outfile: resolve(target, 'assets/site.js'),
     bundle: true,
     format: 'esm',
     platform: 'browser',
@@ -94,7 +94,7 @@ async function main() {
   cpSync(resolve(ROOT, 'site/index.html'), resolve(target, '404.html'));
 
   console.log(`site construit dans ${target}`);
-  console.log(`  index.html, styles.css, assets/demo.js`);
+  console.log(`  index.html, styles.css, assets/site.js`);
   console.log(`  ${buildStamp()}`);
 }
 
