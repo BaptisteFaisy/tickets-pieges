@@ -1,7 +1,7 @@
 # Test d'intégration Forge — la boucle qui a trouvé les cinq défauts
 
 > Ni `forge lint`, ni `tsc`, ni les 1232 tests ne montrent ce qui n'existe
-> que sur la plateforme : le SQL exécuté par TiDB, les appels REST really
+> que sur la plateforme : le SQL exécuté par TiDB, les appels REST réellement
 > envoyés, la file d'événements, les quotas, la forme des identifiants. Ce test
 > est la boucle qui les a trouvés.
 
@@ -57,7 +57,7 @@ Un écart qui sort de cette liste est une régression — et la porte échoue.
 ## Ce que ce test ne peut pas faire
 
 - Il exige **un site** : il est donc hors de la CI, et c'est dit. Le contrôle
-  automatique qui tourne partout est `tools/check-traceability.mjs` (l Existence
+  automatique qui tourne partout est `tools/check-traceability.mjs` (l’existence
   des fichiers) ; celui-ci va **exécuter** le produit.
 - Il ne mesure pas les **délais** : c'est le lot `slo` qui s'en charge.
 - Il ne traite que l/français tant que le jeu anglais n'est pas semé : le
