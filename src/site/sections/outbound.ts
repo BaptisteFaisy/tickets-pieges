@@ -1,7 +1,10 @@
 import type { DlpFinding } from '../../core/dlp';
 import { createDraft, decidePublication } from '../../core/drafts';
+import { checkOutboundFile } from '../../core/outbound-files';
+import type { OutboundFileCheck } from '../../core/outbound-files';
+import type { RedTeamAttempt, RedTeamReport } from '../../core/outbound-rate';
 import { checkNotification } from '../../core/outbound-notify';
-import { countForAgent, createRateState, PUBLIC_REPLY_HOURLY_LIMIT, recordPublicReply } from '../../core/outbound-rate';
+import { buildRedTeamAttempts, countForAgent, createRateState, PUBLIC_REPLY_HOURLY_LIMIT, recordPublicReply, runRedTeam } from '../../core/outbound-rate';
 import type { RateDecision, RateState } from '../../core/outbound-rate';
 import { checkOutbound, outboundCaveats } from '../../core/outbound';
 import type { OutboundDlpResult } from '../../core/outbound';
@@ -71,6 +74,21 @@ const FR = {
   notifyWindow: 'Fenêtre d’exposition',
   notifyLeft: 'Le courriel est peut-être déjà parti',
   notifyWithin: 'Contrôle dans la cible de 60 s',
+  fileH: 'Pièce jointe sortante',
+  fileName: 'Nom du fichier',
+  fileSize: 'Taille',
+  fileBtn: 'Contrôler la pièce',
+  fileReasons: 'Raisons',
+  fileAnalyzed: 'Contenu analysé',
+  redH: 'Mode red team',
+  redNote: 'Cinq tentatives déterministes pour faire sortir un marqueur ; le sas est joué tel quel, sans avantage ajouté.',
+  redMarker: 'Marqueur à faire sortir',
+  redBtn: 'Lancer le mode red team',
+  redScore: 'Tentatives passées',
+  redRate: 'Taux de réussite',
+  redPassed: 'Tentatives qui percent',
+  attempt: 'Tentative',
+  text: 'Texte joué',
 } as const;
 
 type TKey = keyof typeof FR;
@@ -134,6 +152,21 @@ const EN: Record<TKey, string> = {
   notifyWindow: 'Exposure window',
   notifyLeft: 'The email may already have left',
   notifyWithin: 'Control within the 60 s target',
+  fileH: 'Outbound attachment',
+  fileName: 'File name',
+  fileSize: 'Size',
+  fileBtn: 'Check the file',
+  fileReasons: 'Reasons',
+  fileAnalyzed: 'Content analyzed',
+  redH: 'Red team mode',
+  redNote: 'Five deterministic attempts to leak a marker; the gate is played as is, with no added advantage.',
+  redMarker: 'Marker to leak',
+  redBtn: 'Run red team mode',
+  redScore: 'Attempts passed',
+  redRate: 'Success rate',
+  redPassed: 'Attempts that get through',
+  attempt: 'Attempt',
+  text: 'Played text',
 };
 
 const TEXT: Record<Language, Record<TKey, string>> = { fr: FR, en: EN };
@@ -217,6 +250,14 @@ function formHtml(lang: Language): string {
     field(tr(lang, 'humanReview'), yesNoSelect(lang, 'ob-review', false)),
     field(tr(lang, 'delay'), selectHtml('ob-delay', [['0', tr(lang, 'delay0')], ['45', '45 s'], ['90', '90 s'], ['300', '300 s']], '90')),
     buttonHtml('ob-run', tr(lang, 'run')),
+    heading(tr(lang, 'fileH')),
+    field(tr(lang, 'fileName'), textareaHtml('ob-fname', 1, 'rapport.pdf.exe', 'rapport.pdf.exe')),
+    field(tr(lang, 'fileSize'), selectHtml('ob-fsize', [['250000', '250 Ko'], ['12000000', '12 Mo']], '12000000')),
+    buttonHtml('ob-file', tr(lang, 'fileBtn'), 'ghost'),
+    heading(tr(lang, 'redH')),
+    note(tr(lang, 'redNote')),
+    field(tr(lang, 'redMarker'), textareaHtml('ob-marker', 1, 'CANARI-SORTIE', 'CANARI-SORTIE')),
+    buttonHtml('ob-redteam', tr(lang, 'redBtn'), 'ghost'),
   ];
   return controls.join('');
 }
@@ -340,10 +381,47 @@ function runHtml(
   ].join('');
 }
 
+function fileHtml(lang: Language, check: OutboundFileCheck): string {
+  return [
+    badge(actionLabel(lang, check.action), ACTION_TONE[check.action]),
+    kv([
+      [tr(lang, 'fileName'), check.fileName],
+      [tr(lang, 'fileAnalyzed'), check.contentAnalyzed ? tr(lang, 'yes') : tr(lang, 'no')],
+    ]),
+    check.reasons.length > 0 ? details(tr(lang, 'fileReasons'), list(check.reasons), true) : note(tr(lang, 'none')),
+  ].join('');
+}
+
+function makeGate(context: OutboundContext, lang: Language, now: string): (text: string) => string | null {
+  return (text) => {
+    const v = checkOutbound(text, context, { stage: 'before', language: lang, now });
+    return v.allowed ? (v.redactedText ?? text) : null;
+  };
+}
+
+function redHtml(lang: Language, report: RedTeamReport, attempts: RedTeamAttempt[]): string {
+  const rows = attempts.map((a) => [
+    a.id,
+    report.passedAttempts.includes(a.id) ? '✓' : '✗',
+  ]);
+  return [
+    kv([
+      [tr(lang, 'redScore'), `${report.passed} / ${report.total}`],
+      [tr(lang, 'redRate'), `${Math.round(report.successRate * 100)} %`],
+    ]),
+    note(report.summary),
+    table([tr(lang, 'attempt'), tr(lang, 'redPassed')], rows),
+  ].join('');
+}
+
 function render(ctx: SectionContext): string {
   const lang = ctx.lang;
   const left = panel(formHtml(lang), 'ob-form');
-  const right = panel([heading(tr(lang, 'result')), note(tr(lang, 'pending'))].join(''), 'ob-result');
+  const right = [
+    panel([heading(tr(lang, 'result')), note(tr(lang, 'pending'))].join(''), 'ob-result'),
+    panel([heading(tr(lang, 'fileH')), note(tr(lang, 'pending'))].join(''), 'ob-file-result'),
+    panel([heading(tr(lang, 'redH')), note(tr(lang, 'pending'))].join(''), 'ob-red-result'),
+  ].join('');
   return [heading(tr(lang, 'intro')), grid(left, right)].join('');
 }
 
@@ -362,6 +440,25 @@ function mount(root: HTMLElement, ctx: SectionContext): void {
     rateState = recorded.state;
     const out = byId<HTMLElement>(root, 'ob-result');
     if (out) out.innerHTML = runHtml(lang, text, verdict, context, humanReviewed, ctx.now, recorded.decision, delaySeconds);
+  });
+  byId<HTMLButtonElement>(root, 'ob-file')?.addEventListener('click', () => {
+    const { context } = readContext(root, lang);
+    const file = {
+      fileName: valueOf(root, 'ob-fname').trim(),
+      sizeBytes: Number.parseInt(valueOf(root, 'ob-fsize'), 10) || 0,
+      extractedText: valueOf(root, 'ob-text'),
+    };
+    const check = checkOutboundFile(file, context, lang, ctx.now);
+    const out = byId<HTMLElement>(root, 'ob-file-result');
+    if (out) out.innerHTML = [heading(tr(lang, 'fileH')), fileHtml(lang, check)].join('');
+  });
+  byId<HTMLButtonElement>(root, 'ob-redteam')?.addEventListener('click', () => {
+    const { context } = readContext(root, lang);
+    const marker = valueOf(root, 'ob-marker').trim() || 'CANARI-SORTIE';
+    const attempts = buildRedTeamAttempts(marker);
+    const report = runRedTeam(marker, makeGate(context, lang, ctx.now), lang, attempts);
+    const out = byId<HTMLElement>(root, 'ob-red-result');
+    if (out) out.innerHTML = [heading(tr(lang, 'redH')), redHtml(lang, report, attempts)].join('');
   });
 }
 
