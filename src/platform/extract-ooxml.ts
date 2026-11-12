@@ -41,8 +41,12 @@ export function decodeUtf8(bytes: Uint8Array): string {
   return out;
 }
 
-/** Décompression Flate brute (raw deflate) : fournie par l'appelant. */
-export type Inflate = (data: Uint8Array) => Uint8Array;
+/**
+ * Décompression Flate : fournie par l'appelant (le runtime Forge ne
+ * garantit pas `zlib`). `raw` sert aux entrées ZIP (deflate brut), `zlib`
+ * aux flux PDF (`/FlateDecode`, enveloppe zlib).
+ */
+export type Inflate = (data: Uint8Array, format: 'raw' | 'zlib') => Uint8Array;
 
 export type OoxmlKind = 'docx' | 'xlsx' | 'pptx';
 
@@ -122,7 +126,7 @@ function entryData(bytes: Uint8Array, entry: ZipEntryMeta, inflate?: Inflate): U
   const start = entry.localOffset + 30 + nameLen + extraLen;
   const raw = bytes.subarray(start, start + entry.compressedSize);
   if (entry.method === 0) return raw;
-  if (entry.method === 8) return inflate ? inflate(raw) : null;
+  if (entry.method === 8) return inflate ? inflate(raw, 'raw') : null;
   return null;
 }
 
@@ -246,7 +250,7 @@ function xlsxText(xml: string, strings: string[]): { visible: string; concealed:
     const shared = Number.isInteger(index) ? strings[index] : undefined;
     visible.push(shared ?? value);
   }
-  for (const sheet of matchAll(xml, /<sheet(?:\s[^>]*)?>/g)) {
+  for (const sheet of matchAll(xml, /<sheet((?:\s[^>]*)?)>/g)) {
     if (/state="hidden"/i.test(sheet)) {
       const name = attr(sheet, 'name');
       if (name) concealed.push(name);

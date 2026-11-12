@@ -179,7 +179,7 @@ function openStream(slice: StreamSlice, inflate?: Inflate): { text: string | nul
   if (OTHER_FILTER.test(slice.dict) && !compressed) return { text: null, skipped: false };
   if (compressed) {
     try {
-      const inflated = inflate?.(slice.data);
+      const inflated = inflate?.(slice.data, 'zlib');
       if (!inflated) return { text: null, skipped: true };
       return { text: latin1(inflated), skipped: false };
     } catch {
