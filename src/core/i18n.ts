@@ -14,6 +14,7 @@ import { detectionC1Catalog } from './catalog/detection-c1';
 import { detectionC2Catalog } from './catalog/detection-c2';
 import { detectionC3Catalog } from './catalog/detection-c3';
 import { detectionC4Catalog } from './catalog/detection-c4';
+import { expositionCatalog } from './catalog/exposition';
 import { framingCatalog } from './catalog/framing';
 import { hookCatalog } from './catalog/hook';
 import { originCatalog } from './catalog/origin';
@@ -29,6 +30,7 @@ const CATALOGS = [
   detectionC2Catalog,
   detectionC3Catalog,
   detectionC4Catalog,
+  expositionCatalog,
   pressureCatalog,
   framingCatalog,
   outboundCatalog,
