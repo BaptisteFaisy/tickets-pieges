@@ -6,15 +6,22 @@
 import { describe, expect, it } from 'vitest';
 import {
   C3_OBJECTIVE_MS,
+  EVENT_KINDS,
+  EVENT_KIND_LABELS,
   MAX_DURATION_MS,
+  STAGE_LABELS,
+  TIMING_INTERVALS,
+  TIMING_STAGES,
   assumed,
   buildTimingReport,
   checkObjective,
   demote,
   durationMs,
+  durationsByEventKind,
   emptyTrace,
   exposureWindowMs,
   formatMs,
+  groupByEventKind,
   intervalsOf,
   markStage,
   measured,
@@ -23,7 +30,7 @@ import {
   renderReportMarkdown,
   summarizeObjectives,
   throughput,
-  TIMING_INTERVALS,
+  type EventKind,
   type QueueSample,
   type ThroughputSample,
   type TimingTrace,
@@ -218,6 +225,88 @@ describe('rapport', () => {
     expect(markdown).toContain('45.0 s');
     expect(markdown).toContain('late');
     expect(markdown).not.toContain('SUP-1');
+  });
+});
+
+describe('étapes du §18', () => {
+  it('nomme les cinq étapes de l’arrivée de la demande', () => {
+    for (const stage of ['origin', 'c1', 'c2', 'enqueued-c3', 'mode-applied', 'journal']) {
+      expect(TIMING_STAGES).toContain(stage);
+    }
+  });
+
+  it('donne un libellé français et anglais pour chaque étape', () => {
+    for (const stage of TIMING_STAGES) {
+      const label = STAGE_LABELS[stage];
+      expect(label.fr.length).toBeGreaterThan(0);
+      expect(label.en.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('conserve l’ordre réel du pipeline', () => {
+    const order = (stage: string): number => TIMING_STAGES.indexOf(stage as never);
+    expect(order('origin')).toBeLessThan(order('c1'));
+    expect(order('c1')).toBeLessThan(order('c2'));
+    expect(order('c2')).toBeLessThan(order('enqueued-c3'));
+    expect(order('enqueued-c3')).toBeLessThan(order('mode-applied'));
+    expect(order('mode-applied')).toBeLessThan(order('journal'));
+  });
+});
+
+describe('type d’événement', () => {
+  it('connaît les quatre types de déclencheur', () => {
+    expect([...EVENT_KINDS]).toEqual(['creation', 'comment', 'update', 'link']);
+    for (const kind of EVENT_KINDS) {
+      expect(EVENT_KIND_LABELS[kind].fr.length).toBeGreaterThan(0);
+      expect(EVENT_KIND_LABELS[kind].en.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('porte le type sur la trace et le garde à travers les marques', () => {
+    const trace = markStage(emptyTrace('SUP-1', 'creation'), 'created', T0);
+    expect(trace.eventKind).toBe('creation');
+    const marked = markStage(trace, 'c2', T0 + 100);
+    expect(marked.eventKind).toBe('creation');
+  });
+
+  it('ne fabrique pas de type quand on ne le connaît pas', () => {
+    const trace = markStage(emptyTrace('SUP-1'), 'created', T0);
+    expect('eventKind' in trace).toBe(false);
+    expect(trace.eventKind).toBeUndefined();
+  });
+
+  it('regroupe les traces par type, les types absents restant vides', () => {
+    const traces: TimingTrace[] = [
+      markStage(emptyTrace('SUP-1', 'creation'), 'created', T0),
+      markStage(emptyTrace('SUP-2', 'creation'), 'created', T0 + 10),
+      markStage(emptyTrace('SUP-3', 'comment'), 'created', T0 + 20),
+      markStage(emptyTrace('SUP-4'), 'created', T0 + 30),
+    ];
+    const groups = groupByEventKind(traces);
+    expect(groups.creation).toHaveLength(2);
+    expect(groups.comment).toHaveLength(1);
+    expect(groups.update).toEqual([]);
+    expect(groups.link).toEqual([]);
+  });
+
+  it('donne la pire durée par type, et null quand le type n’est pas mesuré', () => {
+    const traces: TimingTrace[] = [
+      markStage(markStage(emptyTrace('SUP-1', 'creation'), 'created', T0), 'c2', T0 + 900),
+      markStage(markStage(emptyTrace('SUP-2', 'creation'), 'created', T0 + 5), 'c2', T0 + 125),
+      markStage(markStage(emptyTrace('SUP-3', 'comment'), 'created', T0), 'c2', T0 + 300),
+    ];
+    const durations = durationsByEventKind(traces, 'created', 'c2');
+    expect(durations.creation).toBe(900);
+    expect(durations.comment).toBe(300);
+    expect(durations.update).toBeNull();
+    expect(durations.link).toBeNull();
+  });
+
+  it('ignore une trace sans type dans le regroupement', () => {
+    const groups = groupByEventKind([emptyTrace('SUP-1')]);
+    for (const kind of EVENT_KINDS as readonly EventKind[]) {
+      expect(groups[kind]).toEqual([]);
+    }
   });
 });
 
