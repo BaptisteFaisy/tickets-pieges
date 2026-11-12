@@ -27,8 +27,21 @@ import {
   type SessionClaims,
   type SessionTokenCheck,
 } from '../../core/session-token';
+import type { PolicyDecision, SessionCapability, SessionPolicyState } from '../../core/session-policy';
 import {
-  badge, buttonHtml, byId, field, grid, heading, kv, note, panel, pre, selectHtml, table, valueOf,
+  DEFAULT_SESSION_POLICY,
+  applyGesture,
+  capabilityPolicy,
+  claimsOf,
+  decide,
+  isSessionExpired,
+  recordSignal,
+  releaseQuarantine,
+  remainingBudget,
+  startSession,
+} from '../../core/session-policy';
+import {
+  badge, buttonHtml, byId, details, field, grid, heading, kv, list, note, panel, pre, selectHtml, table, valueOf,
 } from '../dom';
 import type { Section, SectionContext } from './types';
 
@@ -82,6 +95,29 @@ const TEXTS = {
   notifiedVerified: { fr: 'Jeton vérifié.', en: 'Token verified.' },
   notifiedTampered: { fr: 'Charge altérée : vérifiez, la signature tombe.', en: 'Payload altered: verify it, the signature fails.' },
   notifiedNoToken: { fr: 'Signez d’abord un jeton.', en: 'Sign a token first.' },
+  policyTitle: { fr: '4. Budget (#26), quarantaine (#27) et capacités (#21)', en: '4. Budget (#26), quarantine (#27) and capabilities (#21)' },
+  policyIntro: {
+    fr: 'Que peut encore faire cette session ? Trois réponses publiques libres (au clic, la confirmation humaine est simulée), puis validation obligatoire. Deux signaux et la session ne peut plus que lire — seul un humain l’en fait sortir. Les capacités sont dites sans nom de produit.',
+    en: 'What can this session still do? Three free public replies (the click simulates human confirmation), then mandatory review. Two signals and the session becomes read-only — only a human releases it. Capabilities are stated without product names.',
+  },
+  reply: { fr: 'Publier une réponse publique', en: 'Publish a public reply' },
+  signal: { fr: '+1 signal (refus humain)', en: '+1 signal (human denial)' },
+  release: { fr: 'Sortir de quarantaine (revue humaine)', en: 'Release quarantine (human review)' },
+  budgetLeft: { fr: 'réponses libres', en: 'free replies' },
+  signals: { fr: 'signaux', en: 'signals' },
+  quarantined: { fr: 'quarantaine : lecture seule', en: 'quarantine: read-only' },
+  expired: { fr: 'éteinte par inactivité', en: 'expired by inactivity' },
+  humanReview: { fr: 'validation humaine', en: 'human review' },
+  capability: { fr: 'Capacité (#21)', en: 'Capability (#21)' },
+  verdictCol: { fr: 'Verdict', en: 'Verdict' },
+  capDenied: { fr: 'refusée', en: 'denied' },
+  capAsk: { fr: 'à confirmer', en: 'confirmation' },
+  capAllowed: { fr: 'libre', en: 'allowed' },
+  limits: { fr: 'Limites dites franchement (§21)', en: 'Limits stated plainly (§21)' },
+  notifiedReply: { fr: 'Réponse publique traitée par la politique.', en: 'Public reply processed by the policy.' },
+  notifiedDenied: { fr: 'Geste refusé : validation humaine requise.', en: 'Gesture denied: human review required.' },
+  notifiedSignal: { fr: 'Signal enregistré.', en: 'Signal recorded.' },
+  notifiedRelease: { fr: 'Quarantaine levée par revue humaine.', en: 'Quarantine released by human review.' },
 } as const;
 
 type TextKey = keyof typeof TEXTS;
@@ -98,19 +134,27 @@ interface SessionsState {
   key: string;
   token: string | null;
   check: SessionTokenCheck | null;
+  policy: SessionPolicyState | null;
+  lastDecision: PolicyDecision | null;
 }
 
 let state: SessionsState = {
   taints: [], trust: 'T1', action: 'public-reply', offsetMin: 0,
-  key: '', token: null, check: null,
+  key: '', token: null, check: null, policy: null, lastDecision: null,
 };
 
 /** Remet la démonstration à zéro (tests, bouton de réinitialisation). */
 export function resetSessionsDemo(): void {
   state = {
     taints: [], trust: 'T1', action: 'public-reply', offsetMin: 0,
-    key: '', token: null, check: null,
+    key: '', token: null, check: null, policy: null, lastDecision: null,
   };
+}
+
+/** État de la politique : ouvert à la première interaction (#26, #27). */
+export function ensurePolicy(ctx: SectionContext): SessionPolicyState {
+  if (!state.policy) state.policy = startSession({ ...DEMO, now: demoNow(ctx) });
+  return state.policy;
 }
 
 /** Heure simulée de la démonstration : `ctx.now` décalé, jamais l’heure système. */
@@ -128,8 +172,9 @@ export function gestureDecision(lang: 'fr' | 'en'): SessionDecision {
   return requiresConfirmation(currentTaint(), state.action, lang);
 }
 
-/** Affirmations signables (#23) pour la session de démonstration. */
+/** Affirmations signables (#23) : l’état de la politique s’il est ouvert. */
 export function demoClaims(ctx: SectionContext): SessionClaims {
+  if (state.policy) return claimsOf(state.policy);
   const now = demoNow(ctx);
   return {
     sessionRef: DEMO.sessionRef,
@@ -160,7 +205,7 @@ export function formatRemaining(ms: number): string {
 
 function taintStatus(ctx: SectionContext): string {
   const status = currentTaint()
-    ? badge(tx(ctx, 'tainted'), 'danger')
+    ? badge(tx(ctx, 'tainted'), 'bad')
     : badge(tx(ctx, 'clean'), 'ok');
   const rows = state.taints.map((item) => [item.sessionRef, item.issueId, item.since]);
   const marks = rows.length > 0
@@ -200,7 +245,7 @@ function tokenHtml(ctx: SectionContext): string {
   if (!state.token) return note(tx(ctx, 'noToken'));
   const { check } = state;
   const verdict = check
-    ? (check.ok ? badge(tx(ctx, 'valid'), 'ok') : badge(check.reason, 'danger'))
+    ? (check.ok ? badge(tx(ctx, 'valid'), 'ok') : badge(check.reason, 'bad'))
     : '';
   const claims = check?.claims ?? demoClaims(ctx);
   const deadline = check?.expiresAt ?? expiresAt(claims, DEFAULT_SESSION_TTL_MS);
@@ -224,8 +269,58 @@ function tokenPanel(ctx: SectionContext): string {
   );
 }
 
+/** Ligne de capacités colorée (tableau en mode `cellHtml`). */
+function capabilityLine(items: readonly SessionCapability[], tone: string): string {
+  return items.length > 0 ? items.map((c) => badge(c, tone)).join(' ') : '—';
+}
+
+function policyStatusLine(pol: SessionPolicyState, now: string, ctx: SectionContext): string {
+  const left = remainingBudget(pol);
+  return [
+    badge(`${left} ${tx(ctx, 'budgetLeft')}`, left > 0 ? 'ok' : 'bad'),
+    badge(`${pol.signals} ${tx(ctx, 'signals')}`, pol.signals > 0 ? 'warn' : 'ok'),
+    pol.quarantine ? badge(tx(ctx, 'quarantined'), 'bad') : '',
+    isSessionExpired(pol, now) ? badge(tx(ctx, 'expired'), 'bad') : '',
+  ].filter(Boolean).join(' ');
+}
+
+function lastDecisionHtml(ctx: SectionContext): string {
+  const decision = state.lastDecision;
+  if (!decision) return '';
+  const tone = decision.decision === 'deny' ? 'bad' : decision.decision === 'ask' ? 'warn' : 'ok';
+  const review = decision.humanReview ? ` ${badge(tx(ctx, 'humanReview'), 'bad')}` : '';
+  return `<p>${badge(decision.decision, tone)}${review}</p>` +
+    (decision.reason ? note(decision.reason) : '');
+}
+
+function policyHtml(ctx: SectionContext): string {
+  const pol = ensurePolicy(ctx);
+  const now = demoNow(ctx);
+  const cap = capabilityPolicy(pol, now, DEFAULT_SESSION_POLICY, ctx.lang);
+  const rows: string[][] = [
+    [tx(ctx, 'capDenied'), capabilityLine(cap.denied, 'bad')],
+    [tx(ctx, 'capAsk'), capabilityLine(cap.confirmation, 'warn')],
+    [tx(ctx, 'capAllowed'), capabilityLine(cap.allowed, 'ok')],
+  ];
+  return `<p>${policyStatusLine(pol, now, ctx)}</p>` +
+    lastDecisionHtml(ctx) +
+    table([tx(ctx, 'capability'), tx(ctx, 'verdictCol')], rows, true) +
+    details(tx(ctx, 'limits'), list([...cap.limits]));
+}
+
+function policyPanel(ctx: SectionContext): string {
+  return panel(
+    heading(tx(ctx, 'policyTitle')) +
+    note(tx(ctx, 'policyIntro')) +
+    buttonHtml('s-reply', tx(ctx, 'reply')) +
+    buttonHtml('s-signal', tx(ctx, 'signal'), 'ghost') +
+    buttonHtml('s-release', tx(ctx, 'release'), 'ghost') +
+    `<div id="s-policy">${policyHtml(ctx)}</div>`,
+  );
+}
+
 function render(ctx: SectionContext): string {
-  return grid(taintPanel(ctx), gesturePanel(ctx)) + tokenPanel(ctx);
+  return grid(taintPanel(ctx), gesturePanel(ctx)) + tokenPanel(ctx) + policyPanel(ctx);
 }
 
 function refresh(root: HTMLElement, ctx: SectionContext): void {
@@ -235,6 +330,30 @@ function refresh(root: HTMLElement, ctx: SectionContext): void {
   if (decision) decision.innerHTML = decisionHtml(ctx);
   const token = byId(root, 's-token');
   if (token) token.innerHTML = tokenHtml(ctx);
+  const policy = byId(root, 's-policy');
+  if (policy) policy.innerHTML = policyHtml(ctx);
+}
+
+function mountPolicy(root: HTMLElement, ctx: SectionContext): void {
+  on(root, 's-reply', () => {
+    const pol = ensurePolicy(ctx);
+    const now = demoNow(ctx);
+    const decision = decide(pol, 'public-reply', now, DEFAULT_SESSION_POLICY, ctx.lang);
+    state.lastDecision = decision;
+    state.policy = decision.decision === 'deny' ? pol : applyGesture(pol, 'public-reply', now);
+    refresh(root, ctx);
+    ctx.notify(decision.decision === 'deny' ? tx(ctx, 'notifiedDenied') : tx(ctx, 'notifiedReply'));
+  });
+  on(root, 's-signal', () => {
+    state.policy = recordSignal(ensurePolicy(ctx), demoNow(ctx));
+    refresh(root, ctx);
+    ctx.notify(tx(ctx, 'notifiedSignal'));
+  });
+  on(root, 's-release', () => {
+    state.policy = releaseQuarantine(ensurePolicy(ctx), demoNow(ctx));
+    refresh(root, ctx);
+    ctx.notify(tx(ctx, 'notifiedRelease'));
+  });
 }
 
 function on(root: HTMLElement, id: string, handler: () => void): void {
@@ -298,6 +417,7 @@ function mount(root: HTMLElement, ctx: SectionContext): void {
     ctx.notify(tx(ctx, 'notifiedDecision'));
   });
   mountToken(root, ctx);
+  mountPolicy(root, ctx);
 }
 
 export const sessionsSection: Section = {
