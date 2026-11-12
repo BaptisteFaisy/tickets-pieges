@@ -35,6 +35,7 @@ import {
 } from '../../core/autotune';
 import { badge, buttonHtml, byId, esc, field, heading, list, note, panel, table, textareaHtml } from '../dom';
 import type { Section, SectionContext } from './types';
+import { flagsBlock, wireFlags } from './tuning-flags';
 
 const L = {
   precisionTitle: { fr: 'Précision par règle', en: 'Per-rule precision' },
@@ -338,7 +339,14 @@ const CALIB_RUN_ID = 'tuning-calib-run';
 const CALIB_RESULT_ID = 'tuning-calib-result';
 
 function render(ctx: SectionContext): string {
-  return `<section class="section" id="tuning">${precisionBlock(ctx)}${calibBlock(ctx)}${tamperBlock(ctx)}</section>`;
+  return (
+    `<section class="section" id="tuning">` +
+    precisionBlock(ctx) +
+    calibBlock(ctx) +
+    tamperBlock(ctx) +
+    flagsBlock(ctx) +
+    `</section>`
+  );
 }
 
 function wireTamper(root: HTMLElement, ctx: SectionContext): void {
@@ -373,6 +381,7 @@ function wireCalibration(root: HTMLElement, ctx: SectionContext): void {
 function mount(root: HTMLElement, ctx: SectionContext): void {
   wireTamper(root, ctx);
   wireCalibration(root, ctx);
+  wireFlags(root, ctx);
 }
 
 export const tuningSection: Section = {
