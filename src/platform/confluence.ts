@@ -22,7 +22,7 @@
  *     jamais la confiance.
  */
 
-import type { CommentVisibility, RequestChannel, SegmentSource } from '../core/types';
+import type { CommentVisibility } from '../core/types';
 import type { AccountSnapshot } from './schema';
 import { accountTypeOf, emailDomainOf } from './jsm';
 
@@ -156,43 +156,6 @@ export function storageToText(storage: unknown): string {
     .replace(/&nbsp;/g, NBSP)
     .replace(/&amp;/g, '&');
   return decoded.replace(/\s+/g, ' ').trim().slice(0, MAX_STORAGE_CHARS);
-}
-
-// ------------------------------------------------------------------- segments
-
-/**
- * Les segments d'une page (§4) : titre, corps, chaque commentaire. Même forme
- * que `segmentsOf` pour Jira — le moteur en aval (origine, C1/C2/C4, encadrement)
- * est exactement le même.
- */
-export function confluenceSegments(
-  page: ConfluencePageView,
-  comments: readonly ConfluenceCommentView[],
-): SegmentSource[] {
-  const base = {
-    issueId: pageIssueId(page.id),
-    issueKey: pageIssueKey(page),
-    projectKey: page.spaceKey,
-    channel: 'unknown' as RequestChannel,
-    createdAt: page.createdAt,
-  };
-  const visibility = pageVisibility(page.restricted);
-  const segments: SegmentSource[] = [
-    { ...base, field: 'summary', text: page.title, author: page.author, visibility },
-    { ...base, field: 'description', text: page.body, author: page.author, visibility },
-  ];
-  for (const comment of comments) {
-    segments.push({
-      ...base,
-      field: 'comment',
-      refId: comment.id,
-      text: comment.body,
-      author: comment.author,
-      visibility: visibility ?? 'public',
-      createdAt: comment.createdAt,
-    });
-  }
-  return segments.filter((segment) => segment.text.length > 0);
 }
 
 /** Rend du texte brut au format storage (XHTML) : écriture de bandeau, neutralisation. */
