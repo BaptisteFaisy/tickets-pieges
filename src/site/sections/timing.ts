@@ -14,12 +14,17 @@
  */
 
 import {
+  C3_OBJECTIVE_MS,
   TIMING_INTERVALS,
+  checkObjective,
+  durationMs,
   emptyTrace,
   exposureWindowMs,
   formatMs,
   intervalsOf,
   markStage,
+  summarizeObjectives,
+  type ObjectiveCheck,
   type TimingInterval,
   type TimingStage,
   type TimingTrace,
@@ -56,6 +61,7 @@ const LABELS = {
   outputs: { fr: 'Productions', en: 'Outputs' },
   duration: { fr: 'Durée', en: 'Duration' },
   status: { fr: 'Statut', en: 'Status' },
+  objective: { fr: 'Objectif', en: 'Objective' },
   notPlayed: { fr: 'non jouée', en: 'not played' },
   boundNote: {
     fr: 'Durées relevées dans votre navigateur sur un rejeu hors ligne : une seule '
@@ -92,6 +98,30 @@ const LABELS = {
     en: 'Offline, origin, C1, C2 and mode are not dated separately: the end of the '
       + 'replay bounds all four (docs/MESURES.md §3). The C3 verdict is not played '
       + 'in the browser — it stays “to measure on site”.',
+  },
+  budgetsTitle: {
+    fr: 'Comparaison aux budgets du §21',
+    en: 'Comparison with the §21 budgets',
+  },
+  budget: { fr: 'Budget (§21)', en: 'Budget (§21)' },
+  observed: { fr: 'Observé ici', en: 'Observed here' },
+  verdict: { fr: 'Verdict', en: 'Verdict' },
+  met: { fr: 'tenu', en: 'met' },
+  exceeded: { fr: 'dépassé', en: 'exceeded' },
+  lexicalBudget: { fr: 'origine + C1 + C2', en: 'origin + C1 + C2' },
+  c3Budget: { fr: 'couche C3 (file asynchrone)', en: 'layer C3 (async queue)' },
+  safeToolBudget: { fr: 'get-request-safe (outil MCP)', en: 'get-request-safe (MCP tool)' },
+  budgetsNote: {
+    fr: 'Le budget « origine + C1 + C2 » est jugé sur la borne haute du rejeu local '
+      + '(les trois ne sont pas séparables hors ligne). C3 n’est pas jouée dans le '
+      + 'navigateur et get-request-safe n’existe que sur le site déployé : ces deux '
+      + 'lignes restent « à mesurer sur site », jamais devinées. Un dépassement est '
+      + 'signalé avec son écart, jamais masqué (§21).',
+    en: 'The “origin + C1 + C2” budget is judged on the upper bound of the local '
+      + 'replay (the three are not separable offline). C3 is not played in the '
+      + 'browser and get-request-safe only exists on the deployed site: those two '
+      + 'rows stay “to measure on site”, never guessed. An overshoot is reported '
+      + 'with its margin, never hidden (§21).',
   },
 } as const;
 
@@ -225,9 +255,55 @@ export function intervalsTable(m: SampleMeasure, ctx: SectionContext): string {
   );
 }
 
+/** Vérifications des trois budgets du §21 sur une mesure locale. */
+export function budgetChecks(m: SampleMeasure, lang: 'fr' | 'en'): ObjectiveCheck[] {
+  const names = lang === 'fr'
+    ? [LABELS.lexicalBudget.fr, LABELS.c3Budget.fr, LABELS.safeToolBudget.fr]
+    : [LABELS.lexicalBudget.en, LABELS.c3Budget.en, LABELS.safeToolBudget.en];
+  return [
+    checkObjective('lexical', names[0]!, durationMs(m.trace, 'created', 'c2'), LEXICAL_BUDGET_MS),
+    checkObjective('c3', names[1]!, durationMs(m.trace, 'created', 'c3'), C3_OBJECTIVE_MS),
+    checkObjective('safe-tool', names[2]!, null, SAFE_TOOL_BUDGET_MS),
+  ];
+}
+
+/** Pastille de verdict : tenu, dépassé (avec l'écart) ou à mesurer sur site. */
+export function verdictBadge(check: ObjectiveCheck, ctx: SectionContext): string {
+  if (check.status === 'ok') return badge(label(ctx, 'met'), 'ok');
+  if (check.status === 'late') {
+    return badge(`${label(ctx, 'exceeded')} (+${formatMs(check.overshootMs)})`, 'bad');
+  }
+  return badge(label(ctx, 'toMeasure'), 'warn');
+}
+
+/** Tableau des budgets du §21 : objectif, durée observée ici, verdict. */
+export function budgetsTable(m: SampleMeasure, ctx: SectionContext): string {
+  const checks = budgetChecks(m, ctx.lang);
+  const rows = checks.map((check): [string, string, string, string] => [
+    check.label,
+    `< ${formatMs(check.objectiveMs)}`,
+    check.observedMs === null
+      ? label(ctx, 'toMeasure')
+      : `≤ ${formatMs(check.observedMs)}`,
+    verdictBadge(check, ctx),
+  ]);
+  const summary = summarizeObjectives(checks);
+  const line = note(
+    `${summary.ok} ${label(ctx, 'met')} · ${summary.late} ${label(ctx, 'exceeded')} · `
+    + `${summary.unknown} ${label(ctx, 'toMeasure')}`,
+  );
+  return (
+    heading(label(ctx, 'budgetsTitle'))
+    + table([label(ctx, 'budget'), label(ctx, 'objective'), label(ctx, 'observed'),
+      label(ctx, 'verdict')], rows, true)
+    + line
+    + note(label(ctx, 'budgetsNote'))
+  );
+}
+
 /** Tout le résultat d'une mesure locale. */
 export function results(m: SampleMeasure, ctx: SectionContext): string {
-  return measureHead(m, ctx) + intervalsTable(m, ctx) + stepsTable(m, ctx);
+  return measureHead(m, ctx) + intervalsTable(m, ctx) + budgetsTable(m, ctx) + stepsTable(m, ctx);
 }
 
 /** Câblage : le bouton rejoue la demande choisie et rafraîchit le résultat. */
