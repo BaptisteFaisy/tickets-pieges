@@ -1,0 +1,275 @@
+{
+  "version": 1,
+  "source": "docs/CAHIER-DES-CHARGES.md §15 (table des exigences TP-01 à TP-28)",
+  "note": "Chaque exigence cite ses modules (fichiers d'implémentation) et ses tests (fichiers `*.test.ts`) par chemin relatif à la racine du dépôt. Un chemin qui n'existe plus est un trou : la porte `tools/check-traceability.mjs` le signale. `reste` (facultatif) dit ce qui reste à faire, en clair — rien n'est caché.",
+  "requirements": [
+    {
+      "id": "TP-01",
+      "title": "Calculer l'origine de chaque segment à la création d'une demande et à chaque commentaire",
+      "priorite": "M",
+      "modules": ["src/core/origin.ts", "src/core/catalog/origin.ts", "src/jobs/pipeline.ts"],
+      "tests": ["src/core/origin.test.ts", "src/jobs/pipeline.test.ts"]
+    },
+    {
+      "id": "TP-02",
+      "title": "Niveaux T0 à T3 réglables : domaines, organisations, intégrations de confiance",
+      "priorite": "M",
+      "modules": ["src/core/trust-rules.ts", "src/core/levels.ts", "src/core/catalog/reglages.ts"],
+      "tests": ["src/core/trust-rules.test.ts", "src/core/origin.test.ts"]
+    },
+    {
+      "id": "TP-03",
+      "title": "Couches C1 et C2 sur le résumé, la description, les commentaires, les champs texte et les noms de fichiers",
+      "priorite": "M",
+      "modules": [
+        "src/core/detect.ts",
+        "src/core/c1-concealment.ts",
+        "src/core/c2-addressing.ts",
+        "src/core/lexicon-fr.ts",
+        "src/core/lexicon-en.ts",
+        "src/core/catalog/detection-c1.ts",
+        "src/core/catalog/detection-c2.ts"
+      ],
+      "tests": [
+        "src/core/c1-concealment.test.ts",
+        "src/core/c2-addressing.test.ts",
+        "src/core/lexicons-multilingues.test.ts"
+      ]
+    },
+    {
+      "id": "TP-04",
+      "title": "Couche C3 par le modèle de Forge, avec les précautions du § 6",
+      "priorite": "M",
+      "modules": ["src/core/c3-model.ts", "src/platform/llm.ts", "src/core/catalog/detection-c3.ts", "src/jobs/c3.ts"],
+      "tests": ["src/core/c3-model.test.ts", "src/platform/llm.test.ts"]
+    },
+    {
+      "id": "TP-05",
+      "title": "Constats avec extrait, position, couche et demande résumée",
+      "priorite": "M",
+      "modules": ["src/core/findings.ts", "src/core/context.ts"],
+      "tests": ["src/core/findings.test.ts", "src/core/context.test.ts"]
+    },
+    {
+      "id": "TP-06",
+      "title": "Bandeau sur le ticket, visible avant toute action d'IA, avec le détail des constats",
+      "priorite": "M",
+      "modules": [
+        "src/core/suspicion.ts",
+        "src/core/catalog/detection-c4.ts",
+        "src/core/catalog/ui.ts",
+        "src/ui/issue-panel.tsx",
+        "src/resolvers/panel.ts"
+      ],
+      "tests": ["src/core/suspicion.test.ts", "src/resolvers/panel.test.ts"]
+    },
+    {
+      "id": "TP-07",
+      "title": "Propriété indexée (confiance, suspicion) pour les files, le JQL et l'automatisation",
+      "priorite": "M",
+      "modules": ["src/platform/properties.ts", "src/platform/db.ts", "src/platform/schema.ts"],
+      "tests": ["src/platform/properties.test.ts", "src/platform/memory.test.ts"],
+      "reste": "L'index JQL réel dépend de Forge SQL : vérifié sur le site, pas de test local."
+    },
+    {
+      "id": "TP-08",
+      "title": "Outil `get-request-safe` : contenu encadré, balises à identifiant aléatoire",
+      "priorite": "M",
+      "modules": ["src/core/framing.ts", "src/core/catalog/framing.ts", "src/mcp/read.ts"],
+      "tests": ["src/core/framing.test.ts", "src/mcp/actions.test.ts"]
+    },
+    {
+      "id": "TP-09",
+      "title": "Mode « étiqueter »",
+      "priorite": "M",
+      "modules": ["src/core/modes.ts", "src/core/catalog/framing.ts"],
+      "tests": ["src/core/modes.test.ts"]
+    },
+    {
+      "id": "TP-10",
+      "title": "Mode « neutraliser » : original conservé, restauration, journal",
+      "priorite": "M",
+      "modules": ["src/core/neutralize.ts", "src/core/exports.ts", "src/platform/log.ts"],
+      "tests": ["src/core/neutralize.test.ts", "src/core/exports.test.ts", "src/platform/log.test.ts"]
+    },
+    {
+      "id": "TP-11",
+      "title": "Agent Rovo « Lecteur prudent », limité au ticket en cours",
+      "priorite": "M",
+      "modules": ["src/core/assistants.ts", "src/mcp/service.ts", "manifest.yml"],
+      "tests": ["src/core/assistants.test.ts"],
+      "reste": "La consigne de l'agent vit dans `manifest.yml` : elle n'est pas couverte par un test local (vérifiée sur le site)."
+    },
+    {
+      "id": "TP-12",
+      "title": "Brouillon de réponse en note interne, publié par un humain",
+      "priorite": "M",
+      "modules": ["src/core/drafts.ts", "src/core/outbound.ts", "src/core/catalog/outbound.ts"],
+      "tests": ["src/core/drafts.test.ts", "src/core/outbound.test.ts"]
+    },
+    {
+      "id": "TP-13",
+      "title": "Contrôle des réponses publiques : avant publication par l'app, après coup sinon",
+      "priorite": "M",
+      "modules": ["src/core/outbound.ts", "src/core/outbound-rate.ts", "src/core/catalog/outbound.ts"],
+      "tests": ["src/core/outbound.test.ts", "src/core/outbound-rate.test.ts"]
+    },
+    {
+      "id": "TP-14",
+      "title": "File des suspects et verdict humain",
+      "priorite": "M",
+      "modules": [
+        "src/core/suspicion.ts",
+        "src/core/scores.ts",
+        "src/resolvers/queue.ts",
+        "src/resolvers/review.ts",
+        "src/ui/suspect-queue.tsx"
+      ],
+      "tests": ["src/core/suspicion.test.ts", "src/resolvers/queue.test.ts", "src/resolvers/review.test.ts"]
+    },
+    {
+      "id": "TP-15",
+      "title": "Exercice d'alerte avec ticket témoin",
+      "priorite": "M",
+      "modules": [
+        "src/core/canary.ts",
+        "src/core/canary-chain.ts",
+        "src/core/canary-schedule.ts",
+        "src/core/catalog/canary.ts",
+        "src/platform/db-canaries.ts"
+      ],
+      "tests": [
+        "src/core/canary.test.ts",
+        "src/core/canary-chain.test.ts",
+        "src/core/canary-schedule.test.ts"
+      ]
+    },
+    {
+      "id": "TP-16",
+      "title": "Journal et rapport d'exposition",
+      "priorite": "M",
+      "modules": ["src/core/exposure.ts", "src/core/precision.ts", "src/platform/log.ts", "src/core/catalog/exposition.ts"],
+      "tests": ["src/core/exposure.test.ts", "src/core/precision.test.ts", "src/platform/log.test.ts"]
+    },
+    {
+      "id": "TP-17",
+      "title": "Outils MCP du § 16",
+      "priorite": "M",
+      "modules": ["src/mcp/actions.ts", "src/mcp/read.ts", "src/mcp/write.ts", "src/mcp/result.ts"],
+      "tests": ["src/mcp/actions.test.ts"]
+    },
+    {
+      "id": "TP-18",
+      "title": "Jeu d'essai intégré : demandes d'exemple pour la démonstration et la recette",
+      "priorite": "M",
+      "modules": [
+        "src/sample/dataset.ts",
+        "src/sample/to-segments.ts",
+        "data/sample/requests-fr.json",
+        "data/sample/requests-en.json",
+        "tools/replay.mjs"
+      ],
+      "tests": ["src/sample/dataset.test.ts", "src/replay/engine.test.ts"]
+    },
+    {
+      "id": "TP-19",
+      "title": "Hook : réécriture des lectures, confirmation des écritures publiques",
+      "priorite": "S",
+      "modules": [
+        "src/hook/inbound.ts",
+        "src/hook/outbound.ts",
+        "src/hook/config.ts",
+        "src/hook/token.ts",
+        "src/jobs/webhook.ts",
+        "src/core/catalog/hook.ts"
+      ],
+      "tests": [
+        "src/hook/inbound.test.ts",
+        "src/hook/outbound.test.ts",
+        "src/hook/config.test.ts",
+        "src/hook/token.test.ts"
+      ]
+    },
+    {
+      "id": "TP-20",
+      "title": "Session contaminée",
+      "priorite": "S",
+      "modules": [
+        "src/core/session.ts",
+        "src/core/session-policy.ts",
+        "src/core/session-audit.ts",
+        "src/core/session-token.ts",
+        "src/core/catalog/session.ts"
+      ],
+      "tests": [
+        "src/core/session.test.ts",
+        "src/core/session-policy.test.ts",
+        "src/core/session-audit.test.ts",
+        "src/core/session-token.test.ts"
+      ]
+    },
+    {
+      "id": "TP-21",
+      "title": "Hérédité vers les tickets liés ou clonés",
+      "priorite": "S",
+      "modules": ["src/core/inheritance.ts"],
+      "tests": ["src/core/inheritance.test.ts"]
+    },
+    {
+      "id": "TP-22",
+      "title": "Pièces jointes : texte des PDF analysé, autres formats marqués « non analysés »",
+      "priorite": "S",
+      "modules": [
+        "src/platform/attachments.ts",
+        "src/platform/extract.ts",
+        "src/platform/extract-pdf.ts",
+        "src/core/unanalyzed.ts"
+      ],
+      "tests": ["src/core/unanalyzed.test.ts", "src/platform/extract.test.ts", "src/platform/extract-pdf.test.ts"],
+      "reste": "La lecture d'une pièce jointe réelle dépend du runtime Forge : le test couvre l'extraction injectée, pas le fichier stocké par Jira."
+    },
+    {
+      "id": "TP-23",
+      "title": "Campagnes : regroupement des charges identiques",
+      "priorite": "S",
+      "modules": ["src/core/campaigns.ts", "src/core/fingerprint.ts"],
+      "tests": ["src/core/campaigns.test.ts", "src/core/fingerprint.test.ts"]
+    },
+    {
+      "id": "TP-24",
+      "title": "Repasser en interne une réponse publique suspecte",
+      "priorite": "S",
+      "modules": ["src/core/outbound.ts", "src/core/outbound-notify.ts", "src/core/catalog/outbound-ops.ts"],
+      "tests": ["src/core/outbound.test.ts", "src/core/outbound-notify.test.ts"]
+    },
+    {
+      "id": "TP-25",
+      "title": "Recopie d'un texte externe par un interne",
+      "priorite": "S",
+      "modules": ["src/core/fingerprint.ts", "src/core/self-write.ts", "src/core/session-policy.ts"],
+      "tests": ["src/core/fingerprint.test.ts", "src/core/self-write.test.ts"]
+    },
+    {
+      "id": "TP-26",
+      "title": "Confluence : pages et commentaires d'invités",
+      "priorite": "C",
+      "modules": ["src/jobs/confluence.ts", "src/platform/confluence.ts"],
+      "tests": ["src/jobs/confluence.test.ts", "src/platform/confluence.test.ts"]
+    },
+    {
+      "id": "TP-27",
+      "title": "Texte caché dans les documents bureautiques",
+      "priorite": "C",
+      "modules": ["src/platform/extract-ooxml.ts", "src/core/decode.ts", "src/core/rich-text.ts"],
+      "tests": ["src/platform/extract-ooxml.test.ts", "src/core/decode.test.ts"]
+    },
+    {
+      "id": "TP-28",
+      "title": "Partage anonymisé des motifs entre organisations",
+      "priorite": "C",
+      "modules": ["src/core/hashing.ts", "src/core/fingerprint.ts", "src/platform/db-repos.ts"],
+      "tests": ["src/core/hashing.test.ts", "src/core/fingerprint.test.ts"],
+      "reste": "Le registre inter-organisation lui-même n'est pas branché (planifié) : seuls les briques d'empreinte existent."
+    }
+  ]
+}
