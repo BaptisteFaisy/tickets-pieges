@@ -320,6 +320,8 @@ function portWriters(
       await invoker(contentPath(pageId), { method: 'PUT', body: payload });
     },
     async setProperty(pageId, key, value) {
+      // Comme pour Jira, le corps est stocké tel quel : valeur nue, jamais
+      // enveloppée (mesuré sur site le 12 novembre 2026).
       await invoker(propertyPath(pageId, key), { method: 'PUT', body: JSON.stringify(value) });
     },
     async addLabel(pageId, name) {

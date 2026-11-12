@@ -327,3 +327,26 @@ Les neuf points du §20 (tableau de synthèse plus haut) et les points 5, 6 et 9
 s'obtient par `forge webtrigger list -e development --site one-atlas-cndz.atlassian.net`
 (commande interactive : elle exige un TTY), puis le jeu d'essai se dépose depuis
 le portail pour déclencher de vrais événements.
+
+## 8. Ce qui a été mesuré sur un site live (12 novembre 2026)
+
+L'app a été **déployée et installée** sur `one-atlas-cndz.atlassian.net`
+(Jira **et** Confluence, environnement de développement, v3.1.0), puis nourrie de
+**données live** : les 19 demandes françaises du jeu d'essai semées sur le service
+desk SECOPS. Le détail, les commandes et les cinq défauts trouvés au passage sont
+dans [`docs/DEMO-LIVE.md`](DEMO-LIVE.md).
+
+| Mesure | Résultat |
+|---|---|
+| demandes propagées par les déclencheurs | **19 / 19** — la propriété `pieges` est écrite sur chacune |
+| conformes à l'attendu du jeu (origine + suspicion) | **14 / 19** ; les 5 écarts sont tous caractérisés (3 limites de reproduction du geste, 1 différence de niveau, 1 portée de C3) |
+| couche C3 (modèle hébergé) | **tourne** : la consigne reformulée sans mot du lexique (`fr-11`) passe de `clean` à `review` sur le ticket |
+| couche C1 | joue : caractères invisibles, bidi, bloc encodé — les trois sont `suspect` sur le ticket |
+| couche C2 | joue : consigne à un assistant, faux marqueur de système, action sur d'autres tickets — `suspect` sur le ticket |
+| origine | T1 pour une demande de client du portail, **T3 pour une demande d'agent interne** |
+| erreurs REST / SQL dans les journaux | **aucune** après les correctifs (avant : 415, 1064, 400, quota) |
+
+Ce qui reste à mesurer sur le site, et n'est donc **pas** coché : les fenêtres
+de délai (création → origine, → C3), le débit au-delà des 19 demandes, et les
+points du §20 qui exigent un agent Rovo réel (le « Lecteur prudent » de la
+démo).

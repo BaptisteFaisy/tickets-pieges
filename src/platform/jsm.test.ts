@@ -159,3 +159,29 @@ describe('pièces jointes (TP-22)', () => {
     expect(attempted).toBe(false);
   });
 });
+
+describe('type de compte : ce que Jira montre vraiment (§20)', () => {
+  it('un compte cloud moderne (préfixe de tenant) est interne, pas un compte d’app', () => {
+    // Mesuré sur site réel le 12 novembre 2026 : `712020:ba9bbe36-…` est le
+    // compte d'un agent de support, pas une intégration.
+    expect(accountTypeOf('712020:ba9bbe36-cf26-4a6a-8f5e-2369b742296b')).toBe('atlassian');
+  });
+
+  it('un compte d’app est identifiable à son identité `ari:`', () => {
+    expect(accountTypeOf('ari:cloud:ecosystem::app/6fb8fafb-3d45-4a47-bcac-f5d1cffe4902')).toBe('app');
+  });
+
+  it('les formes historiques sont conservées', () => {
+    expect(accountTypeOf('5d10a8')).toBe('customer');
+    expect(accountTypeOf('5b10a8')).toBe('atlassian');
+  });
+
+  it('un identifiant inconnu ne prétend rien', () => {
+    expect(accountTypeOf('60ad2d2a06bf0c006a42fa84')).toBe('unknown');
+    expect(accountTypeOf('')).toBe('unknown');
+  });
+
+  it('un agent de support est interne quoi que son identifiant dise', () => {
+    expect(accountTypeOf('60ad2d2a06bf0c006a42fa84', true)).toBe('atlassian');
+  });
+});

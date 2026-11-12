@@ -216,6 +216,29 @@ describe('le pipeline en cinq étapes (§18)', () => {
   });
 });
 
+describe('résilience : une file C3 indisponible n’empêche pas l’analyse (§18)', () => {
+  it('la mise en file qui échoue est journalisée, l’analyse se termine', async () => {
+    const { deps: d } = deps({
+      enqueueC3: async () => {
+        throw new Error('400 Bad Request');
+      },
+    });
+    const result = await scanIssue(d, 'SUP-482');
+    expect(result.state.trustLevel).toBe('T1');
+    expect(result.queuedForC3).toBe(0);
+    const events = await d.store.events.list(result.state.issueId, 20);
+    expect(events.some((event) => event.kind === 'c3-enqueue-failed')).toBe(true);
+    expect(events.some((event) => event.kind === 'scan')).toBe(true);
+  });
+
+  it('sans mise en file possible, l’état est tout de même écrit', async () => {
+    const { deps: d } = deps({ enqueueC3: undefined });
+    const result = await scanIssue(d, 'SUP-482');
+    expect(result.state.suspicionLevel).toBe('clean');
+    expect(await d.store.states.get(result.state.issueId)).not.toBeNull();
+  });
+});
+
 describe('couche C3 par la file (§6)', () => {
   it('un avis du modèle devient un constat, une fois seulement', async () => {
     const { deps: d } = deps();

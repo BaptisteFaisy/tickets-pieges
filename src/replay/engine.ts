@@ -13,6 +13,7 @@ import { contentHash } from '../core/hashing';
 import { t } from '../core/i18n';
 import { decideMode, type ModeDecision } from '../core/modes';
 import { computeOrigins, issueTrustLevel } from '../core/origin';
+import { detectText } from '../core/detect';
 import { computeSuspicion, toIssueState } from '../core/suspicion';
 import type {
   AuthorContext,
@@ -182,7 +183,14 @@ function c4HitsOf(
 /** Constats d'un segment, toutes couches déterministes jouées confondues. */
 function findingsOfSegment(prepared: PreparedReplay, segment: SegmentSource, segmentId: string): SegmentAnalysis {
   const { language, settings, dominant, now, c1 } = prepared;
-  const hits = [...c1HitsOf(segment, language, c1), ...c2HitsOf(segment, language, settings)];
+  // Même détection que la production (`src/core/detect.ts`) : le banc joue
+  // exactement ce que joue le ticket. Un C1 injecté par un test remplace la
+  // seule famille C1.
+  const shared = detectText(segment.text, {
+    language,
+    ignoredPhrases: settings.ignoredPhrases,
+  });
+  const hits = c1 === null || c1 === realC1 ? shared : [...c1HitsOf(segment, language, c1), ...shared.filter((hit) => hit.layer !== 'C1')];
   const c4 = c4HitsOf(segment, language, dominant, now);
   return { findings: toFindings({ hits: [...hits, ...c4], segment, segmentId, language, now }), c4 };
 }
