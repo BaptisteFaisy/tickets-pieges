@@ -24,10 +24,13 @@ import {
   intervalsOf,
   markStage,
   summarizeObjectives,
+  throughput,
   type ObjectiveCheck,
   type TimingInterval,
   type TimingStage,
   type TimingTrace,
+  type Throughput,
+  type ThroughputSample,
 } from '../../core/timing';
 import { replaySample, type ReplayReport } from '../../replay/engine';
 import { byLanguage, loadDataset, type SampleRequestEntry } from '../../sample/dataset';
@@ -122,6 +125,30 @@ const LABELS = {
       + 'browser and get-request-safe only exists on the deployed site: those two '
       + 'rows stay “to measure on site”, never guessed. An overshoot is reported '
       + 'with its margin, never hidden (§21).',
+  },
+  flowTitle: { fr: 'Débit estimé (rejeu local)', en: 'Estimated throughput (local replay)' },
+  flowButton: { fr: 'Estimer le débit sur tout le jeu', en: 'Estimate throughput over the dataset' },
+  flowPrompt: {
+    fr: 'Pas encore estimé dans cette session : lancez la mesure pour rejouer tout '
+      + 'le jeu d’essai dans votre navigateur.',
+    en: 'Not estimated in this session yet: run the measure to replay the whole '
+      + 'dataset in your browser.',
+  },
+  replayCount: { fr: 'Demandes rejouées', en: 'Requests replayed' },
+  window: { fr: 'Fenêtre de mesure', en: 'Measurement window' },
+  perMinute: { fr: 'Par minute', en: 'Per minute' },
+  perHour: { fr: 'Par heure', en: 'Per hour' },
+  flowNote: {
+    fr: 'Estimation mesurée dans votre navigateur sur un rejeu hors ligne, sans '
+      + 'file C3 ni portail Jira. Le débit du site déployé (#84, 5 000 tickets) '
+      + 'reste à mesurer sur site — ce chiffre ne le remplace pas.',
+    en: 'Estimate measured in your browser over an offline replay, with no C3 queue '
+      + 'and no Jira portal. The deployed-site throughput (#84, 5,000 tickets) '
+      + 'remains to be measured on site — this figure does not replace it.',
+  },
+  flowDone: {
+    fr: 'Débit estimé sur {n} demandes rejouées localement.',
+    en: 'Throughput estimated over {n} locally replayed requests.',
   },
 } as const;
 
@@ -226,12 +253,13 @@ function sampleOptions(ctx: SectionContext): [string, string][] {
   return entries.map((entry) => [entry.id, `${entry.id} · famille ${entry.family}`]);
 }
 
-/** Colonne de gauche : choix de la demande et bouton de mesure. */
+/** Colonne de gauche : choix de la demande et boutons de mesure. */
 function controls(ctx: SectionContext): string {
   const options = sampleOptions(ctx);
   return panel(
     field(label(ctx, 'sample'), selectHtml('t-sample', options, options[0]?.[0]))
     + buttonHtml('t-measure', label(ctx, 'measure'))
+    + buttonHtml('t-flow', `${label(ctx, 'flowButton')} (${loadDataset().length})`, 'ghost')
     + note(label(ctx, 'intro')),
   );
 }
@@ -301,20 +329,85 @@ export function budgetsTable(m: SampleMeasure, ctx: SectionContext): string {
   );
 }
 
-/** Tout le résultat d'une mesure locale. */
-export function results(m: SampleMeasure, ctx: SectionContext): string {
-  return measureHead(m, ctx) + intervalsTable(m, ctx) + budgetsTable(m, ctx) + stepsTable(m, ctx);
+/** Ce que la mesure de débit produit. */
+export interface FlowMeasure {
+  flow: Throughput | null;
+  count: number;
+  totalMs: number;
 }
 
-/** Câblage : le bouton rejoue la demande choisie et rafraîchit le résultat. */
+/**
+ * Rejoue tout le jeu d'essai, sans journal, et relève le débit observé dans
+ * le navigateur : un échantillon par demande, horodaté par l'horloge injectée.
+ */
+export async function measureThroughput(
+  samples: readonly SampleRequestEntry[],
+  clock: Clock,
+  now: string,
+): Promise<FlowMeasure> {
+  const base = clock();
+  const flowSamples: ThroughputSample[] = [];
+  for (const sample of samples) {
+    await replaySample(sample, { now });
+    flowSamples.push({ atMs: clock() - base, tickets: 1 });
+  }
+  const totalMs = Math.max(0, clock() - base);
+  return { flow: throughput(flowSamples), count: samples.length, totalMs };
+}
+
+/** Bloc débit : chiffres mesurés ici, ou invite — jamais un chiffre inventé. */
+export function flowBlock(flowMeasure: FlowMeasure | null, ctx: SectionContext): string {
+  const flow = flowMeasure?.flow;
+  if (!flow) {
+    return heading(label(ctx, 'flowTitle'))
+      + note(label(ctx, flowMeasure ? 'toMeasure' : 'flowPrompt'));
+  }
+  return (
+    heading(label(ctx, 'flowTitle'))
+    + kv([
+      [label(ctx, 'replayCount'), String(flow.total)],
+      [label(ctx, 'window'), formatMs(flow.windowMs)],
+      [label(ctx, 'perMinute'), String(flow.perMinute)],
+      [label(ctx, 'perHour'), String(flow.perHour)],
+    ])
+    + note(label(ctx, 'flowNote'))
+  );
+}
+
+/** Tout le résultat d'une mesure locale. */
+export function results(
+  m: SampleMeasure,
+  ctx: SectionContext,
+  flowMeasure: FlowMeasure | null = null,
+): string {
+  return measureHead(m, ctx) + intervalsTable(m, ctx) + budgetsTable(m, ctx)
+    + flowBlock(flowMeasure, ctx) + stepsTable(m, ctx);
+}
+
+/** Câblage : mesure d'une demande, estimation du débit, rafraîchissement. */
 function wire(root: HTMLElement, ctx: SectionContext): void {
   const select = byId<HTMLSelectElement>(root, 't-sample');
   const target = byId<HTMLDivElement>(root, 't-result');
-  byId<HTMLButtonElement>(root, 't-measure')?.addEventListener('click', () => {
+  const flowButton = byId<HTMLButtonElement>(root, 't-flow');
+  let flowMeasure: FlowMeasure | null = null;
+  const measureSelected = (): Promise<SampleMeasure> => {
     const sample =
       byLanguage(ctx.lang).find((entry) => entry.id === select?.value) ?? firstSample(ctx.lang);
-    void measureSample(sample, perfClock(), ctx).then((m) => {
-      if (target) target.innerHTML = results(m, ctx);
+    return measureSample(sample, perfClock(), ctx);
+  };
+  const rerender = (m: SampleMeasure): void => {
+    if (target) target.innerHTML = results(m, ctx, flowMeasure);
+  };
+  byId<HTMLButtonElement>(root, 't-measure')?.addEventListener('click', () => {
+    void measureSelected().then(rerender);
+  });
+  flowButton?.addEventListener('click', () => {
+    flowButton.disabled = true;
+    void measureThroughput(loadDataset(), perfClock(), ctx.now).then(async (measured) => {
+      flowMeasure = measured;
+      flowButton.disabled = false;
+      ctx.notify(LABELS.flowDone[ctx.lang].replace('{n}', String(measured.count)));
+      rerender(await measureSelected());
     });
   });
 }
