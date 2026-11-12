@@ -32,7 +32,7 @@ pour la lecture du réel) :
 | `origin` | création → origine écrite | non séparable aujourd'hui (voir §3) |
 | `c1` | création → fin de la couche C1 | non séparable aujourd'hui |
 | `c2` | création → fin de la couche C2 | borne haute : événement `scan` |
-| `mode` | création → mode appliqué | borne haute : `scan`, borne serrée : `label-applied`, `neutralized`, `state-published` |
+| `mode` | création → mode appliqué | borne haute : `scan` ; borne serrée : `label-applied`, `neutralized`, `state-published` |
 | `c3` | création → verdict du modèle | événement `c3` |
 
 Ordre réel des étapes : le mode est appliqué **pendant** l'analyse synchrone,
@@ -78,10 +78,26 @@ Ce qui n'est pas daté reste « à mesurer sur site » dans le tableau ci-dessou
    node tools/probe-site.mjs --issues SUP-1,SUP-2 --json
    ```
 
-   La sonde écrit la section §5 entre ses deux marqueurs
-   `<!-- MESURES:DEBUT -->
+   La sonde réécrit la section §5, délimitée par ses deux commentaires
+   marqueurs `MESURES:DEBUT` et `MESURES:FIN` (la dernière paire du document
+   fait foi). `--dry-run` affiche sans écrire ; `--in <fichier.json>` rejoue
+   une charge utile déjà produite, hors ligne et sans réseau.
+4. **Répétitions** : trois passages à des heures différentes (creux, charge
+   normale, pointe) ; la valeur retenue est la **pire** observée, pas la
+   médiane — une fenêtre d'exposition se juge sur son pire cas.
+5. **Sortie** : chiffres et libellés uniquement. La sonde **refuse** (code de
+   sortie 2) toute réponse qui porterait une clé de texte de ticket
+   (`text`, `body`, `content`, `excerpt`, `original`, `description`,
+   `summary`) : rien ne sort d'Atlassian (§21).
 
-_Sondé le 2026-11-12T00:55:50.648Z — source : indisponible._
+## 5. Résultats
+
+État au 12 novembre 2026 : le site n'a pas encore été sondé. La section
+ci-dessous est régénérée par `tools/probe-site.mjs` à chaque sondage.
+
+<!-- MESURES:DEBUT -->
+
+_Sondé le 2026-11-12T00:57:49.992Z — source : indisponible._
 
 Le site n’a pas rendu de mesures : ni --url ni --in : rien à sonder.
 
@@ -101,23 +117,6 @@ Aucun chiffre n’est inventé : tout reste « à mesurer sur site ».
 
 - Hors site : les chiffres seront relevés sur l’instance installée.
 
-<!-- MESURES:FIN -->` ; `--dry-run` affiche sans
-   écrire, `--in <fichier.json>` rejoue une charge utile déjà produite (hors
-   ligne, sans réseau).
-4. **Répétitions** : trois passages à des heures différentes (creux, charge
-   normale, pointe) ; la valeur retenue est la **pire** observée, pas la
-   médiane — une fenêtre d'exposition se juge sur son pire cas.
-5. **Sortie** : chiffres et libellés uniquement. La sonde **refuse** (code de
-   sortie 2) toute réponse qui porterait une clé de texte de ticket
-   (`text`, `body`, `content`, `excerpt`, `original`, `description`,
-   `summary`) : rien ne sort d'Atlassian (§21).
-
-## 5. Résultats
-
-État au 12 novembre 2026 : le site n'a pas encore été sondé. La section
-ci-dessous est régénérée par `tools/probe-site.mjs` à chaque sondage.
-
-<!-- MESURES:DEBUT -->
 <!-- MESURES:FIN -->
 
 ## 6. Objectifs
@@ -141,7 +140,7 @@ Deux ajouts hors de ce lot (fichiers d'autres lots) resserreraient les bornes :
    deviendrait exacte au lieu d'être une borne basse ;
 2. exposer `measureSite()` (`src/jobs/timing.ts`) sur le `webtrigger`
    `pieges-ops` (action `timing`) dans `src/jobs/webhook.ts` : sans cette
-   route, la sonde retombe sur « à mesurer sur site » avec la raison exacte.
+   route, la sonde retombe sur « à mesurer sur site » et écrit la raison.
 
 Séparer origine, C1 et C2 dans le journal donnerait en plus les trois
 intervalles aujourd'hui confondus.
