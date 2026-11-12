@@ -16,6 +16,7 @@
 import {
   C3_OBJECTIVE_MS,
   TIMING_INTERVALS,
+  buildTimingReport,
   checkObjective,
   durationMs,
   emptyTrace,
@@ -23,6 +24,7 @@ import {
   formatMs,
   intervalsOf,
   markStage,
+  renderReportMarkdown,
   summarizeObjectives,
   throughput,
   type ObjectiveCheck,
@@ -38,12 +40,15 @@ import {
   badge,
   buttonHtml,
   byId,
+  details,
   field,
   grid,
   heading,
   kv,
+  list,
   note,
   panel,
+  pre,
   selectHtml,
   table,
 } from '../dom';
@@ -149,6 +154,24 @@ const LABELS = {
   flowDone: {
     fr: 'Débit estimé sur {n} demandes rejouées localement.',
     en: 'Throughput estimated over {n} locally replayed requests.',
+  },
+  splitTitle: {
+    fr: 'Mesuré ici · à mesurer sur le site déployé',
+    en: 'Measured here · to measure on the deployed site',
+  },
+  hereTitle: { fr: 'Mesuré ici, dans votre navigateur', en: 'Measured here, in your browser' },
+  siteTitle: { fr: 'Reste à mesurer sur le site', en: 'Remains to measure on site' },
+  splitNote: {
+    fr: 'docs/MESURES.md tient l’état des sondages du site déployé : tant qu’aucun '
+      + 'sondage n’a eu lieu, tous ses chiffres restent « à mesurer sur site ». '
+      + 'Aucun chiffre n’est inventé ici.',
+    en: 'docs/MESURES.md tracks the probes of the deployed site: until a probe has '
+      + 'run, every figure there stays “to measure on site”. No number is invented '
+      + 'here.',
+  },
+  offlineReport: {
+    fr: 'Rapport hors site (markdown, format docs/MESURES.md)',
+    en: 'Offline report (markdown, docs/MESURES.md format)',
   },
 } as const;
 
@@ -374,6 +397,51 @@ export function flowBlock(flowMeasure: FlowMeasure | null, ctx: SectionContext):
   );
 }
 
+/** Ce qui est mesuré ici, et ce qui reste à mesurer sur le site déployé. */
+export const SITE_FACTS: Record<'fr' | 'en', { here: string[]; site: string[] }> = {
+  fr: {
+    here: [
+      'durées du rejeu local : fenêtre d’exposition bornée (création → mode appliqué)',
+      'budget §21 « origine + C1 + C2 », jugé sur cette borne',
+      'débit estimé sur le jeu d’essai rejoué dans le navigateur',
+    ],
+    site: [
+      'fenêtre d’exposition réelle, horodatée par le site (journal du pipeline)',
+      'séparation origine / C1 / C2 : non datées séparément aujourd’hui (docs/MESURES.md §3)',
+      'attente de la file C3 sur 500 messages (#85), face à l’objectif de 30 s',
+      'débit sur 5 000 tickets (#84)',
+      'latence de get-request-safe, outil MCP du site déployé',
+    ],
+  },
+  en: {
+    here: [
+      'local replay durations: bounded exposure window (created → mode applied)',
+      '§21 budget “origin + C1 + C2”, judged on that bound',
+      'throughput estimated over the dataset replayed in the browser',
+    ],
+    site: [
+      'real exposure window, timestamped by the site (pipeline journal)',
+      'separating origin / C1 / C2: not dated separately today (docs/MESURES.md §3)',
+      'C3 queue wait over 500 messages (#85), against the 30 s objective',
+      'throughput over 5,000 tickets (#84)',
+      'get-request-safe latency, an MCP tool of the deployed site',
+    ],
+  },
+};
+
+/** Bloc « mesuré ici vs à mesurer sur site » + rapport hors site du domaine. */
+export function siteBlock(m: SampleMeasure, ctx: SectionContext): string {
+  const facts = SITE_FACTS[ctx.lang];
+  const offline = buildTimingReport({ scope: 'offline', traces: [m.trace] });
+  return (
+    heading(label(ctx, 'splitTitle'))
+    + heading(label(ctx, 'hereTitle')) + list(facts.here)
+    + heading(label(ctx, 'siteTitle')) + list(facts.site)
+    + note(label(ctx, 'splitNote'))
+    + details(label(ctx, 'offlineReport'), pre(renderReportMarkdown(offline)))
+  );
+}
+
 /** Tout le résultat d'une mesure locale. */
 export function results(
   m: SampleMeasure,
@@ -381,7 +449,7 @@ export function results(
   flowMeasure: FlowMeasure | null = null,
 ): string {
   return measureHead(m, ctx) + intervalsTable(m, ctx) + budgetsTable(m, ctx)
-    + flowBlock(flowMeasure, ctx) + stepsTable(m, ctx);
+    + flowBlock(flowMeasure, ctx) + siteBlock(m, ctx) + stepsTable(m, ctx);
 }
 
 /** Câblage : mesure d'une demande, estimation du débit, rafraîchissement. */
