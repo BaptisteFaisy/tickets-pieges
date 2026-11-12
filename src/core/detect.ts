@@ -12,6 +12,14 @@
  *
  * La règle de la maison (`docs/ARCHITECTURE.md` §1) s'applique ici aussi : une
  * règle écrite une fois, utilisée partout.
+ *
+ * Depuis le lot « contrat de détection », ce fichier porte en plus le **contrat**
+ * : la liste des familles jouées vient de `src/core/rules-version.ts` (source
+ * unique), chaque famille a son joueur dans `PLAYERS` — le typage oblige à
+ * écrire le joueur d'une famille nouvelle, et `assertFamilies` refuse, à
+ * l'import, une famille déclarée sans joueur. Le résultat d'une détection
+ * porte la version du catalogue : on peut donc dire avec quelle version des
+ * règles un constat a été produit.
  */
 
 import { detectConcealment } from './c1-concealment';
@@ -20,12 +28,21 @@ import { decodeHits } from './decode';
 import { pressureHits } from './pressure';
 import { dedupeHits } from './findings';
 import type { Language, LayerHit } from './types';
+import {
+  RULES_FINGERPRINT,
+  RULES_ID,
+  RULES_VERSION,
+  RULE_FAMILIES,
+  assertFamilies,
+  assertKnownFamily,
+  type RulesFamily,
+} from './rules-version';
 
 /** Les familles déterministes qu'une détection peut jouer. */
-export type DetectLayer = 'C1' | 'C2' | 'decode' | 'pressure';
+export type DetectLayer = RulesFamily;
 
 /** Toutes les familles : le comportement par défaut du produit. */
-export const DETECT_LAYERS: readonly DetectLayer[] = ['C1', 'C2', 'decode', 'pressure'];
+export const DETECT_LAYERS: readonly DetectLayer[] = RULE_FAMILIES;
 
 export interface DetectOptions {
   /** Langue de détection (fr, en, ou une langue de lexique). */
@@ -81,15 +98,106 @@ function pressureSignals(text: string, options: DetectOptions): LayerHit[] {
   return pressureHits(text, { language: options.language });
 }
 
+/** Le joueur d'une famille : le texte, les options, des constats. */
+type LayerPlayer = (text: string, options: DetectOptions) => LayerHit[];
+
+/**
+ * Le joueur de chaque famille — la table qui rend la famille obligatoire.
+ *
+ * Le type `Record<DetectLayer, LayerPlayer>` fait échouer la compilation dès
+ * qu'une famille est ajoutée à `RULE_FAMILIES` sans joueur : c'est l'erreur,
+ * pas le silence.
+ */
+const PLAYERS: Record<DetectLayer, LayerPlayer> = {
+  C1: concealmentHits,
+  C2: addressingHits,
+  decode: encodedHits,
+  pressure: pressureSignals,
+};
+
+/** Les familles réellement jouées, dans l'ordre du catalogue. */
+export const PLAYED_LAYERS: readonly DetectLayer[] = Object.keys(PLAYERS) as DetectLayer[];
+
+// Le contrat, vérifié à l'import : une famille déclarée sans joueur est un
+// défaut de programmation, pas un comportement à tolérer en silence.
+assertFamilies(DETECT_LAYERS, PLAYED_LAYERS);
+
+/** Le résultat d'une détection : les constats et la version du catalogue. */
+export interface DetectResult {
+  /** Les constats, dédupliqués, bornés, triés par position. */
+  hits: LayerHit[];
+  /** Version majeure du catalogue de règles jouée. */
+  rulesVersion: number;
+  /** Empreinte des tables de motifs jouées. */
+  rulesFingerprint: string;
+  /** Identifiant court : version + empreinte. */
+  rulesId: string;
+  /** Familles effectivement jouées. */
+  families: readonly DetectLayer[];
+}
+
+/**
+ * Les constats, avec la version du catalogue portée **par le tableau lui-même**.
+ *
+ * Les métadonnées sont non énumérables : un `JSON.stringify` des constats ne
+ * les montre pas, et le tableau reste un `LayerHit[]` pour tous les appelants
+ * existants. `detectWithVersion` rend la même information sous forme d'objet.
+ */
+export type DetectHits = LayerHit[] & {
+  /** Version majeure du catalogue de règles jouée. */
+  readonly rulesVersion: number;
+  /** Empreinte des tables de motifs jouées. */
+  readonly rulesFingerprint: string;
+  /** Identifiant court : version + empreinte. */
+  readonly rulesId: string;
+  /** Familles effectivement jouées. */
+  readonly families: readonly DetectLayer[];
+};
+
+/** Les familles demandées, vérifiées : une famille inconnue est refusée. */
+function requestedFamilies(requested?: readonly DetectLayer[]): readonly DetectLayer[] {
+  const families = requested ?? DETECT_LAYERS;
+  for (const family of families) assertKnownFamily(family);
+  return families;
+}
+
+/** Pose les métadonnées de version sur le tableau des constats. */
+function withRules(hits: LayerHit[], families: readonly DetectLayer[]): DetectHits {
+  const result = hits as DetectHits;
+  const meta = { rulesVersion: RULES_VERSION, rulesFingerprint: RULES_FINGERPRINT, rulesId: RULES_ID, families };
+  for (const [key, value] of Object.entries(meta)) {
+    Object.defineProperty(result, key, { value, enumerable: false, writable: false });
+  }
+  return result;
+}
+
 /** Constats d'un texte : dédupliqués, bornés, triés par position. */
-export function detectText(text: string, options: DetectOptions): LayerHit[] {
-  const layers = options.layers ?? DETECT_LAYERS;
+export function detectText(text: string, options: DetectOptions): DetectHits {
+  const families = requestedFamilies(options.layers);
   const hits: LayerHit[] = [];
-  if (layers.includes('C1')) hits.push(...concealmentHits(text, options));
-  if (layers.includes('C2')) hits.push(...addressingHits(text, options));
-  if (layers.includes('decode')) hits.push(...encodedHits(text, options));
-  if (layers.includes('pressure')) hits.push(...pressureSignals(text, options));
+  for (const family of families) {
+    hits.push(...PLAYERS[family](text, options));
+  }
   const deduped = dedupeHits(hits);
   const limited = options.maxHits === undefined ? deduped : deduped.slice(0, options.maxHits);
-  return limited.sort((a, b) => a.startPos - b.startPos || a.ruleId.localeCompare(b.ruleId));
+  const sorted = limited.sort((a, b) => a.startPos - b.startPos || a.ruleId.localeCompare(b.ruleId));
+  return withRules(sorted, families);
+}
+
+/**
+ * La détection, avec sa version, sous forme d'objet.
+ *
+ * Pour un rapport ou un rejeu : le résultat porte la version du catalogue qui
+ * l'a produit, donc un ticket rejoué aujourd'hui avec les règles d'aujourd'hui
+ * est comparable à un ticket d'hier.
+ */
+export function detectWithVersion(text: string, options: DetectOptions): DetectResult {
+  const hits = detectText(text, options);
+  return {
+    hits: [...hits],
+    rulesVersion: hits.rulesVersion,
+    rulesFingerprint: hits.rulesFingerprint,
+    rulesId: hits.rulesId,
+    families: [...hits.families],
+  };
 }
