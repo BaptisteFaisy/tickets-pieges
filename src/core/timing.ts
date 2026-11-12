@@ -355,6 +355,34 @@ export function renderMeasurementRow(label: string, measurement: Measurement<unk
   return '| ' + label + ' | ' + value + ' | ' + measurement.source + ' |';
 }
 
+/** Lignes du tableau pour la file C3 : chiffres uniquement, jamais de texte. */
+function queueRows(report: TimingReport): string[] {
+  const stats = report.queue.value;
+  if (report.queue.source !== 'measured' || !stats) {
+    return ['| file C3 | à mesurer sur site | assumed |'];
+  }
+  return [
+    '| file C3 — échantillons | ' + String(stats.count) + ' | measured |',
+    '| file C3 — médiane | ' + formatMs(stats.p50Ms) + ' | measured |',
+    '| file C3 — p95 | ' + formatMs(stats.p95Ms) + ' | measured |',
+    '| file C3 — pire attente | ' + formatMs(stats.maxMs) + ' | measured |',
+    '| file C3 — dépassements de l’objectif | ' + String(stats.overObjective) + ' | measured |',
+  ];
+}
+
+/** Lignes du tableau pour le débit (#84). */
+function throughputRows(report: TimingReport): string[] {
+  const flow = report.throughput.value;
+  if (report.throughput.source !== 'measured' || !flow) {
+    return ['| débit | à mesurer sur site | assumed |'];
+  }
+  return [
+    '| débit — tickets | ' + String(flow.total) + ' | measured |',
+    '| débit — par minute | ' + String(flow.perMinute) + ' | measured |',
+    '| débit — fenêtre | ' + formatMs(flow.windowMs) + ' | measured |',
+  ];
+}
+
 /** Tableau markdown du rapport, prêt à être versé dans docs/MESURES.md. */
 export function renderReportMarkdown(report: TimingReport): string {
   const lines: string[] = [];
@@ -368,6 +396,7 @@ export function renderReportMarkdown(report: TimingReport): string {
         : 'à mesurer sur site';
     lines.push('| ' + spec.name + ' | ' + value + ' | ' + measurement.source + ' |');
   }
+  lines.push(...queueRows(report), ...throughputRows(report));
   for (const check of report.objectives) {
     lines.push(
       '| objectif ' + check.id + ' | ' + formatMs(check.observedMs) + ' | ' + check.status + ' |',
