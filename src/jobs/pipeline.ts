@@ -323,8 +323,14 @@ async function readDescription(deps: PipelineDeps, issueKey: string): Promise<st
   }
 }
 
-/** Écrit la propriété indexée (TP-07) : confiance et suspicion lisibles en JQL. */
-async function writeProperty(deps: PipelineDeps, state: IssueState, language: Language): Promise<void> {
+/**
+ * Écrit la propriété indexée (TP-07) : confiance et suspicion lisibles en JQL.
+ *
+ * Exportée : après la couche C3, la suspicion peut changer, et la propriété
+ * doit refléter le nouvel état — sinon le ticket continue d'annoncer « sain »
+ * alors que le modèle a relevé une consigne (mesuré le 12 novembre 2026).
+ */
+export async function writeProperty(deps: PipelineDeps, state: IssueState, language: Language): Promise<void> {
   void language;
   await deps.store.states.put({
     issueId: state.issueId,

@@ -74,7 +74,12 @@ async function requestJson(path: string, init?: { method?: string; body?: string
   if (!response.ok) {
     throw new Error(`Jira REST ${response.status} sur ${path}`);
   }
-  return response.status === 204 ? null : response.json();
+  if (response.status === 204) return null;
+  // Un corps vide (204 ou 200 sans corps) n'est pas une erreur : l'écriture de
+  // la propriété indexée répond 204, et `response.json()` levait alors
+  // « Unexpected end of JSON input » (mesuré sur site le 12 novembre 2026).
+  const raw = await response.text();
+  return raw.trim().length > 0 ? JSON.parse(raw) : null;
 }
 
 function issuePath(issueIdOrKey: string): string {

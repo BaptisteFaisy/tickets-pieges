@@ -12,9 +12,9 @@ import { toFindings } from '../core/findings';
 import { computeSuspicion, toIssueState } from '../core/suspicion';
 import { defaultSettings } from '../core/trust-rules';
 import { randomBlockId } from '../core/hashing';
-import type { Finding, SegmentSource, SuspicionLevel } from '../core/types';
+import type { Finding, SegmentSource, SuspicionLevel, IssueState } from '../core/types';
 import type { SegmentRow, Store } from '../platform/schema';
-import type { PipelineDeps } from './pipeline';
+import { writeProperty, type PipelineDeps } from './pipeline';
 
 /** Ce que la couche C3 produit sur un segment. */
 export interface C3Outcome {
@@ -55,7 +55,23 @@ async function persistAfterC3(
   const findings = await deps.store.findings.byIssue(issueId);
   const suspicion = computeSuspicion({ findings });
   if (existing) {
-    await deps.store.states.put({ ...existing, suspicionLevel: suspicion, updatedAt: now });
+    const next = { ...existing, suspicionLevel: suspicion, updatedAt: now };
+    await deps.store.states.put(next);
+    // La propriété indexée doit suivre : c'est elle que l'agent et le support
+    // lisent (TP-07). Le mode appliqué est celui déjà décidé à l'étape 4.
+    const state: IssueState = {
+      issueId: next.issueId,
+      issueKey: next.issueKey,
+      projectKey: next.projectKey,
+      trustLevel: next.trustLevel,
+      suspicionLevel: next.suspicionLevel,
+      modeApplied: next.modeApplied,
+      analyzedSegments: 0,
+      unanalyzed: next.unanalyzed,
+      inheritedFrom: next.inheritedFrom ?? undefined,
+      updatedAt: next.updatedAt,
+    };
+    await writeProperty(deps, state, deps.settings?.language ?? 'fr');
   }
   return suspicion;
 }
