@@ -60,6 +60,16 @@ export const L = {
   tokenRotated: { fr: 'Rotation — nouvelle empreinte, createdAt repart ; la rotation est la seule révocation', en: 'Rotation — new fingerprint, createdAt resets; rotation is the only revocation' },
   tokenOldAfter: { fr: 'Ancien jeton présenté après rotation', en: 'Old token presented after rotation' },
   tokenNewAfter: { fr: 'Nouveau jeton présenté après rotation', en: 'New token presented after rotation' },
+  policyTitle: { fr: 'Politique en lecture seule — ce qu’un agent externe a le droit de faire, avant d’agir (#29)', en: 'Read-only policy — what an external agent may do, before acting (#29)' },
+  policyIssue: { fr: 'Clé du ticket', en: 'Issue key' },
+  policySession: { fr: 'Référence de session', en: 'Session reference' },
+  policyDeclared: { fr: 'trustLevel auto-déclaré par l’agent — ignoré : la politique ne se déclare pas elle-même', en: 'trustLevel self-declared by the agent — ignored: policy never declares itself' },
+  policyRun: { fr: 'Interroger la politique (GET)', en: 'Query the policy (GET)' },
+  policyGet: { fr: 'Action MCP en lecture (verbe GET) : rien n’est écrit, aucun texte de ticket n’est rendu, aucun jeton n’est renvoyé — seule son empreinte figure dans la réponse.', en: 'Read-only MCP action (GET verb): nothing is written, no ticket text is returned, no token is sent back — only its fingerprint appears in the response.' },
+  policyHint: { fr: 'Ticket inconnu de l’app (essayez INC-1) : rien n’est automatique, tout passe par un humain.', en: 'Ticket unknown to the app (try INC-1): nothing is automatic, everything goes through a human.' },
+  policyWarnings: { fr: 'Avertissements — champs déclarés à tort par l’appelant', en: 'Warnings — fields wrongly declared by the caller' },
+  policyEmpty: { fr: 'Interrogez la politique pour voir l’énoncé rendu à l’agent.', en: 'Query the policy to see the statement returned to the agent.' },
+  policyStatement: { fr: 'Énoncé de politique rendu (JSON)', en: 'Policy statement returned (JSON)' },
 } as const;
 
 export type CopyKey = keyof typeof L;
