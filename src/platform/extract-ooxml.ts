@@ -51,8 +51,10 @@ export interface OoxmlExtraction {
   kind: OoxmlKind;
   /** Texte visible, dans l'ordre du document. */
   visible: string;
-  /** Textes cachés : masqués, blanc sur blanc, supprimés, feuilles cachées. */
+  /** Textes masqués (`w:vanish`), supprimés (`w:delText`), feuilles cachées. */
   concealed: string[];
+  /** Textes en blanc sur blanc (`w:color` val `FFFFFF`). */
+  whiteOnWhite: string[];
   /** Textes alternatifs des images. */
   altTexts: string[];
   /** Parties effectivement lues. */
@@ -170,9 +172,12 @@ function attr(tag: string, name: string): string | undefined {
 
 // ------------------------------------------------------- WordprocessingML
 
+/** Nature d'un run Word : vu, masqué, ou blanc sur blanc. */
+export type RunKind = 'visible' | 'hidden' | 'white';
+
 interface WordRun {
   text: string;
-  concealed: boolean;
+  kind: RunKind;
 }
 
 /** Texte d'un run Word : `w:t`, tabulations, sauts de ligne, texte supprimé. */
@@ -184,12 +189,11 @@ function runText(run: string): string {
   return parts.join('') + ' '.repeat(tabs) + '\n'.repeat(breaks) + deleted.join('');
 }
 
-/** Un run est masqué (`w:vanish`), blanc sur blanc (`w:color` FFFFFF) ou supprimé. */
-function runIsConcealed(run: string): boolean {
-  if (/<w:vanish\b/.test(run)) return true;
-  if (/<w:delText\b/.test(run)) return true;
+/** Classe un run : masqué, supprimé, blanc sur blanc, ou simplement visible. */
+function runKind(run: string): RunKind {
+  if (/<w:vanish\b/.test(run) || /<w:delText\b/.test(run)) return 'hidden';
   const color = /<w:color[^>]*w:val="([0-9a-fA-F]{6}|white)"/.exec(run)?.[1]?.toLowerCase();
-  return color === 'ffffff' || color === 'white';
+  return color === 'ffffff' || color === 'white' ? 'white' : 'visible';
 }
 
 function wordRuns(xml: string): WordRun[] {
@@ -197,23 +201,25 @@ function wordRuns(xml: string): WordRun[] {
   for (const body of matchAll(xml, /<w:r(?:\s[^>]*)?>([\s\S]*?)<\/w:r>/g)) {
     const text = runText(body).trim();
     if (text === '') continue;
-    runs.push({ text, concealed: runIsConcealed(body) });
+    runs.push({ text, kind: runKind(body) });
   }
   return runs;
 }
 
-function docxText(xml: string): { visible: string; concealed: string[] } {
+function docxText(xml: string): { visible: string; concealed: string[]; white: string[] } {
   const visible: string[] = [];
   const concealed: string[] = [];
+  const white: string[] = [];
   for (const paragraph of matchAll(xml, /<w:p(?:\s[^>]*)?>([\s\S]*?)<\/w:p>/g)) {
     const line: string[] = [];
     for (const run of wordRuns(paragraph)) {
-      if (run.concealed) concealed.push(run.text);
+      if (run.kind === 'hidden') concealed.push(run.text);
+      else if (run.kind === 'white') white.push(run.text);
       else line.push(run.text);
     }
     if (line.length > 0) visible.push(line.join(' '));
   }
-  return { visible: visible.join('\n'), concealed };
+  return { visible: visible.join('\n'), concealed, white };
 }
 
 // -------------------------------------------------------------- Spreadsheet
@@ -224,9 +230,10 @@ function sharedStrings(xml: string): string[] {
   );
 }
 
-function xlsxText(xml: string, strings: string[]): { visible: string; concealed: string[] } {
+function xlsxText(xml: string, strings: string[]): { visible: string; concealed: string[]; white: string[] } {
   const visible: string[] = [];
   const concealed: string[] = [];
+  const white: string[] = [];
   for (const cell of matchAll(xml, /<c\b[^>]*\/>|<c\b[^>]*>([\s\S]*?)<\/c>/g)) {
     const inline = matchAll(cell, /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g).map(unescapeXml).join('');
     if (inline !== '') {
@@ -245,13 +252,22 @@ function xlsxText(xml: string, strings: string[]): { visible: string; concealed:
       if (name) concealed.push(name);
     }
   }
-  return { visible: visible.join('\n'), concealed };
+  return { visible: visible.join('\n'), concealed, white };
 }
 
 // ------------------------------------------------------------- Présentation
 
-function slideText(xml: string): string {
-  return matchAll(xml, /<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g).map(unescapeXml).join(' ');
+/** Diapositive ou note : texte des runs, blanc sur blanc mis à part. */
+function slideRuns(xml: string): { visible: string; white: string[] } {
+  const visible: string[] = [];
+  const white: string[] = [];
+  for (const run of matchAll(xml, /<a:r(?:\s[^>]*)?>([\s\S]*?)<\/a:r>/g)) {
+    const text = matchAll(run, /<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g).map(unescapeXml).join(' ').trim();
+    if (text === '') continue;
+    if (/srgbClr\s+val="(?:FFFFFF|white)"/i.test(run)) white.push(text);
+    else visible.push(text);
+  }
+  return { visible: visible.join(' '), white };
 }
 
 // ------------------------------------------------------------------ Alt text
@@ -295,6 +311,7 @@ function assemble(
   kind: OoxmlKind,
   visible: string[],
   concealed: string[],
+  white: string[],
   altTexts: string[],
   parts: string[],
   truncated: boolean,
@@ -303,6 +320,7 @@ function assemble(
     kind,
     visible: visible.join('\n').slice(0, MAX_OOXML_TEXT),
     concealed: concealed.slice(0, 500),
+    whiteOnWhite: white.slice(0, 500),
     altTexts: altTexts.slice(0, 200),
     parts: parts.slice(0, MAX_OOXML_ENTRIES),
     truncated,
@@ -327,15 +345,17 @@ function extractDocx(entries: Map<string, Uint8Array>): OoxmlExtraction {
   const names = namesMatching(entries, ['word/document.xml', 'word/header', 'word/footer', 'word/comments.xml', 'word/footnotes.xml', 'word/endnotes.xml']);
   const visible: string[] = [];
   const concealed: string[] = [];
+  const white: string[] = [];
   const altTexts: string[] = [];
   for (const name of names) {
     const xml = textOf(entries, name);
     const doc = docxText(xml);
     if (doc.visible.trim() !== '') visible.push(doc.visible);
     concealed.push(...doc.concealed);
+    white.push(...doc.white);
     altTexts.push(...altTextsOf(xml));
   }
-  return assemble('docx', visible, concealed, altTexts, names, names.length >= MAX_OOXML_ENTRIES);
+  return assemble('docx', visible, concealed, white, altTexts, names, names.length >= MAX_OOXML_ENTRIES);
 }
 
 /** XLSX : chaînes partagées, cellules, feuilles cachées. */
@@ -344,15 +364,17 @@ function extractXlsx(entries: Map<string, Uint8Array>): OoxmlExtraction {
   const names = namesMatching(entries, ['xl/worksheets/sheet', 'xl/workbook.xml']);
   const visible: string[] = [];
   const concealed: string[] = [];
+  const white: string[] = [];
   const altTexts: string[] = [];
   for (const name of names) {
     const xml = textOf(entries, name);
     const sheet = xlsxText(xml, strings);
     if (sheet.visible.trim() !== '') visible.push(sheet.visible);
     concealed.push(...sheet.concealed);
+    white.push(...sheet.white);
     altTexts.push(...altTextsOf(xml));
   }
-  return assemble('xlsx', visible, concealed, altTexts, names, names.length >= MAX_OOXML_ENTRIES);
+  return assemble('xlsx', visible, concealed, white, altTexts, names, names.length >= MAX_OOXML_ENTRIES);
 }
 
 /** PPTX : diapositives et notes. */
@@ -360,12 +382,14 @@ function extractPptx(entries: Map<string, Uint8Array>): OoxmlExtraction {
   const names = namesMatching(entries, ['ppt/slides/slide', 'ppt/notesSlides/notesSlide']);
   const visible: string[] = [];
   const concealed: string[] = [];
+  const white: string[] = [];
   const altTexts: string[] = [];
   for (const name of names) {
     const xml = textOf(entries, name);
-    const text = slideText(xml).trim();
-    if (text !== '') visible.push(text);
+    const slide = slideRuns(xml);
+    if (slide.visible.trim() !== '') visible.push(slide.visible);
+    white.push(...slide.white);
     altTexts.push(...altTextsOf(xml));
   }
-  return assemble('pptx', visible, concealed, altTexts, names, names.length >= MAX_OOXML_ENTRIES);
+  return assemble('pptx', visible, concealed, white, altTexts, names, names.length >= MAX_OOXML_ENTRIES);
 }
