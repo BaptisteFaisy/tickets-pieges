@@ -18,7 +18,9 @@ import { framingCatalog } from './catalog/framing';
 import { hookCatalog } from './catalog/hook';
 import { originCatalog } from './catalog/origin';
 import { outboundCatalog } from './catalog/outbound';
+import { outboundOpsCatalog } from './catalog/outbound-ops';
 import { pressureCatalog } from './catalog/pressure';
+import { sessionCatalog } from './catalog/session';
 import { uiCatalog } from './catalog/ui';
 import type { Language } from './types';
 
@@ -31,9 +33,11 @@ const CATALOGS = [
   pressureCatalog,
   framingCatalog,
   outboundCatalog,
+  outboundOpsCatalog,
   canaryCatalog,
   decodeCatalog,
   hookCatalog,
+  sessionCatalog,
   uiCatalog,
 ];
 
