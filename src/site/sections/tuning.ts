@@ -306,7 +306,7 @@ function calibBlock(ctx: SectionContext): string {
 
 // ------------------------------------------- corruption du détecteur (#20)
 
-function tamperResult(ctx: SectionContext, hits: readonly TamperHit[]): string {
+export function tamperResult(ctx: SectionContext, hits: readonly TamperHit[]): string {
   if (hits.length === 0) return note(label(ctx, 'tamperNone'));
   const rows = hits.map((hit) => [
     badge(label(ctx, 'tamperAlert'), 'bad'),
