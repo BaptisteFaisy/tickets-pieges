@@ -132,18 +132,42 @@ export function splitWord(text: string, random: () => number): string {
   return words.join(' ');
 }
 
-/** Remplace un mot du lexique par un synonyme d'intention identique. */
+/**
+ * Clé du lexique à substituer : celle qui apparaît **le plus à gauche** dans le
+ * texte et, à position égale, la plus longue — on remplace le mot entier
+ * (`instructions`), pas son fragment (`instruct`).
+ *
+ * Règle déterministe, sans tirage : l'ordre des clés de l'objet ne décide plus
+ * de la substitution, deux runs rendent les mêmes chiffres, et une cassure de
+ * détection reste attribuable à une substitution précise (§21).
+ */
+function leftmostSynonymKey(lowered: string): { key: string; at: number } | null {
+  let chosen: { key: string; at: number } | null = null;
+  for (const key of Object.keys(SYNONYMS)) {
+    const at = lowered.indexOf(key);
+    if (at < 0) continue;
+    const better = chosen === null || at < chosen.at || (at === chosen.at && key.length > chosen.key.length);
+    if (better) chosen = { key, at };
+  }
+  return chosen;
+}
+
+/**
+ * Remplace le mot-clé le plus à gauche par son synonyme canonique (le premier
+ * du lexique) : même intention, autre mot.
+ *
+ * La signature reste `(text, random)` comme les autres mutations, mais le
+ * tirage n'intervient pas ici : choisir la clé ou le synonyme au hasard rendait
+ * la mutation non attribuable (sur `ignore all previous instructions`, c'est
+ * `instructions` qui pouvait sauter et donner `… previous directives`).
+ */
 export function swapSynonym(text: string, random: () => number): string {
   const lowered = text.toLowerCase();
-  const keys = Object.keys(SYNONYMS).filter((key) => lowered.includes(key));
-  if (keys.length === 0) return text;
-  const key = keys[pickIndex(random, keys.length)];
-  if (!key) return text;
-  const replacements = SYNONYMS[key] ?? [];
-  if (replacements.length === 0) return text;
-  const replacement = replacements[pickIndex(random, replacements.length)];
-  const at = lowered.indexOf(key);
-  return text.slice(0, at) + replacement + text.slice(at + key.length);
+  const found = leftmostSynonymKey(lowered);
+  if (found === null) return text;
+  const replacement = (SYNONYMS[found.key] ?? [])[0];
+  if (replacement === undefined) return text;
+  return text.slice(0, found.at) + replacement + text.slice(found.at + found.key.length);
 }
 
 /** Change la casse : tout en majuscules, ou une lettre sur deux. */
