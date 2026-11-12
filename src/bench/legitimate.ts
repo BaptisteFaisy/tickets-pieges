@@ -93,17 +93,24 @@ export function measureLegit(
   detect: Detector,
 ): LegitMeasure {
   const { plain, trap } = splitLegit(entries);
-  const perRule = new Map<string, LegitPerRule>();
+  interface RuleCount {
+    ruleId: string;
+    layer: LayerHit['layer'];
+    falsePositivesPlain: number;
+    falsePositivesTrap: number;
+  }
+  const perRule = new Map<string, RuleCount>();
 
-  const count = (ruleId: string, layer: LayerHit['layer'], isTrap: boolean): void => {
-    const existing = perRule.get(ruleId);
-    if (existing) {
-      if (isTrap) return; // pièges déjà comptés à la création
-    }
-    const current = perRule.get(ruleId) ?? { ruleId, layer, falsePositivesPlain: 0, falsePositivesTrap: 0 };
+  const count = (hit: LayerHit, isTrap: boolean): void => {
+    const current = perRule.get(hit.ruleId) ?? {
+      ruleId: hit.ruleId,
+      layer: hit.layer,
+      falsePositivesPlain: 0,
+      falsePositivesTrap: 0,
+    };
     if (isTrap) current.falsePositivesTrap += 1;
     else current.falsePositivesPlain += 1;
-    perRule.set(ruleId, current);
+    perRule.set(hit.ruleId, current);
   };
 
   const plainFalsePositives: string[] = [];
@@ -114,13 +121,16 @@ export function measureLegit(
     const hits = detect(entry) ?? [];
     if (hits.length > 0) plainFalsePositives.push(entry.id);
     if (hits.some((hit) => hit.layer === 'C2')) plainC2Fp += 1;
-    for (const hit of hits) count(hit.ruleId, hit.layer, false);
+    for (const hit of hits) count(hit, false);
   }
   for (const entry of trap) {
     const hits = detect(entry) ?? [];
     if (hits.length > 0) trapFalsePositives.push(entry.id);
-    for (const hit of hits) count(hit.ruleId, hit.layer, true);
+    for (const hit of hits) count(hit, true);
   }
+
+  const perRuleSorted: LegitPerRule[] = Array.from(perRule.values())
+    .sort((a, b) => a.ruleId.localeCompare(b.ruleId));
 
   return {
     total: entries.length,
@@ -131,7 +141,7 @@ export function measureLegit(
     plainFpRate: rate(plainFalsePositives.length, plain.length),
     trapFpRate: rate(trapFalsePositives.length, trap.length),
     plainC2Fp,
-    perRule: Array.from(perRule.values()).sort((a, b) => a.ruleId.localeCompare(b.ruleId)),
+    perRule: perRuleSorted,
   };
 }
 
