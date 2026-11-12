@@ -3,7 +3,7 @@
  *
  * Une divergence n'est pas une erreur du banc : ces tests vérifient qu'elle est
  * dite (détail), que les couches non jouées ne la fabriquent pas, que le bilan
- * tient en une ligne du type « 7 demandes sur 8 conformes », et que les rendus
+ * tient en une ligne du type « 8 demandes sur 8 conformes », et que les rendus
  * texte et JSON sont exploitables tels quels par la console et par l'écran.
  */
 
@@ -65,15 +65,20 @@ describe('compareOne — verdict par demande', () => {
 });
 
 describe('compareBench — bilan du jeu', () => {
-  it('le jeu local rend 7 demandes sur 8 conformes (fr-005 attend C1)', async () => {
+  // Depuis la détection partagée (`src/core/detect.ts`), le banc joue exactement
+  // ce que joue la production : le cas fr-005 (constat C1 attendu) est
+  // désormais détecté, et le jeu local rend 8 demandes sur 8 conformes.
+  it('le jeu local rend 8 demandes sur 8 conformes (fr-005 attend C1)', async () => {
     const { result, summary } = await fullBench();
     expect(summary.total).toBe(8);
-    expect(summary.conforming).toBe(7);
-    expect(summary.diverging).toBe(1);
-    expect(summary.rate).toBe(0.88);
-    expect(summary.headline).toBe('7 demande(s) sur 8 conforme(s)');
+    expect(summary.conforming).toBe(8);
+    expect(summary.diverging).toBe(0);
+    expect(summary.rate).toBe(1);
+    expect(summary.headline).toBe('8 demande(s) sur 8 conforme(s)');
     const diverging = summary.comparisons.filter((item) => item.verdict === 'divergence');
-    expect(diverging.map((item) => item.sampleId)).toEqual(['fr-005']);
+    // Avec la détection partagée, le cas fr-005 (constat C1 attendu) est rendu
+    // comme attendu : confiance, suspicion et nature des constats concordent.
+    expect(diverging.map((item) => item.sampleId)).toEqual([]);
     expect(result.reports).toHaveLength(8);
   });
 
@@ -90,7 +95,7 @@ describe('evaluateRecipes — recette §23', () => {
     const byPoint = new Map(recipes.map((recipe) => [recipe.point, recipe]));
     expect(byPoint.get(1)?.status).toBe('verifie');
     expect(byPoint.get(2)?.status).toBe('verifie');
-    expect(byPoint.get(3)?.status).toBe('non-verifie'); // lot C1 non fusionné
+    expect(byPoint.get(3)?.status).toBe('verifie'); // couche C1 jouée (détection partagée)
     expect(byPoint.get(4)?.status).toBe('verifie');
     expect(byPoint.get(5)?.status).toBe('non-couvert'); // couche C3, hors ligne
     expect(byPoint.get(7)?.status).toBe('verifie');
@@ -116,7 +121,7 @@ describe('rendus — texte et JSON', () => {
     const { result, summary, recipes } = await fullBench();
     const text = renderBenchText({ result, summary, recipes, datasetLabel: 'jeu de test' });
     expect(text).toContain('Banc d’essai');
-    expect(text).toContain('7 demande(s) sur 8 conforme(s)');
+    expect(text).toContain('8 demande(s) sur 8 conforme(s)');
     expect(text).toContain('Recette §23');
     expect(text).toContain('jeu de test');
   });
@@ -134,7 +139,7 @@ describe('rendus — texte et JSON', () => {
     expect(parsed.ok).toBe(true);
     expect(parsed.played).toBe(8);
     expect(parsed.total).toBe(8);
-    expect(parsed.conforming).toBe(7);
+    expect(parsed.conforming).toBe(8);
     expect(parsed.reports).toHaveLength(8);
     expect(parsed.reports[0]?.steps).toHaveLength(5);
     expect(parsed.reports[0]?.framedText).toContain('donnee-');

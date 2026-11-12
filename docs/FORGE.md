@@ -35,6 +35,18 @@ séparation.
 - Les colonnes `TEXT`/`JSON` se lisent en chaîne : sérialiser soi-même
   (`payload_json`), ne pas compter sur un typage automatique.
 
+### REST Jira et Confluence depuis une app
+
+- **`Content-Type: application/json` est obligatoire** sur tout `PUT`/`POST` avec
+  un corps : sans lui, Forge envoie `text/plain` et Jira répond **415 Unsupported
+  Media Type**. Mesuré le 12 novembre 2026 sur l'écriture de la propriété
+  indexée — ni `forge lint`, ni les tests ne le voient (le port n'est pas
+  injectable).
+- **Le corps d'une propriété est stocké tel quel** : `PUT /rest/api/3/issue/{k}/properties/{p}`
+  avec `{"value": {...}}` produit une propriété `value.value` que le lecteur ne
+  sait pas déchiffrer. Envoyer la valeur **nue**. Vérifier le résultat en relisant
+  la propriété par REST, pas seulement le code de réponse.
+
 ## 3. File d'événements (`@forge/events`)
 
 - Le `consumer` reçoit un **`AsyncEvent { body, jobId, … }`**, pas le message nu.

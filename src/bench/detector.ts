@@ -11,11 +11,7 @@
  * déclaré, pas sous-entendu).
  */
 
-import { detectConcealment } from '../core/c1-concealment';
-import { detectAddressing } from '../core/c2-addressing';
-import { decodeHits } from '../core/decode';
-import { dedupeHits } from '../core/findings';
-import { pressureHits } from '../core/pressure';
+import { detectText, type DetectLayer } from '../core/detect';
 import type { LayerHit } from '../core/types';
 import type { CorpusEntry } from './corpus';
 import type { Detector } from './metrics';
@@ -48,49 +44,21 @@ function plays(options: DetectorOptions, layer: BenchLayer): boolean {
   return (options.layers ?? BENCH_LAYERS).includes(layer);
 }
 
-/** C1 — dissimulation (invisibles, bidi, couleur, texte alternatif, liens). */
-function concealmentHits(entry: CorpusEntry, options: DetectorOptions): LayerHit[] {
-  return detectConcealment({
-    text: entry.text,
-    language: entry.lang,
-    knownHosts: [...(options.knownHosts ?? [])],
-  });
-}
-
-/** C2 — adresse à une IA (lexiques fr et en du tronc). */
-function addressingHits(entry: CorpusEntry, options: DetectorOptions): LayerHit[] {
-  return detectAddressing(entry.text, {
+/**
+ * Signaux d'une entrée : **la détection partagée** (`src/core/detect.ts`), celle
+ * que jouent la production et le site. Le banc ne mesure donc pas autre chose que
+ * ce que fait le produit — c'est la condition pour que ses chiffres veuillent
+ * dire quelque chose (§14).
+ */
+export function detectEntry(entry: CorpusEntry, options: DetectorOptions = {}): LayerHit[] {
+  return detectText(entry.text, {
     language: entry.lang,
     ignoredPhrases: [...(options.ignoredPhrases ?? [])],
+    knownHosts: [...(options.knownHosts ?? [])],
     precisionByRule: options.precisionByRule,
     maxHits: options.maxHits,
+    layers: (options.layers ?? BENCH_LAYERS) as readonly DetectLayer[],
   });
-}
-
-/** Blocs encodés : décodage prudent, puis **réanalyse** du décodé par C2. */
-function encodedHits(entry: CorpusEntry, options: DetectorOptions): LayerHit[] {
-  return decodeHits(entry.text, {
-    language: entry.lang,
-    reanalyze: (decoded, context) =>
-      detectAddressing(decoded, { language: context.language, ignoredPhrases: [...(options.ignoredPhrases ?? [])] }),
-  });
-}
-
-/** C4 — pression lexicale hors lexique (densité, consigne différée, acrostiche). */
-function pressureSignals(entry: CorpusEntry): LayerHit[] {
-  return pressureHits(entry.text, { language: entry.lang });
-}
-
-/** Signaux d'une entrée, dédupliqués et triés par position : sortie déterministe. */
-export function detectEntry(entry: CorpusEntry, options: DetectorOptions = {}): LayerHit[] {
-  const hits: LayerHit[] = [];
-  if (plays(options, 'C1')) hits.push(...concealmentHits(entry, options));
-  if (plays(options, 'C2')) hits.push(...addressingHits(entry, options));
-  if (plays(options, 'decode')) hits.push(...encodedHits(entry, options));
-  if (plays(options, 'pressure')) hits.push(...pressureSignals(entry));
-  const deduped = dedupeHits(hits);
-  const limited = options.maxHits === undefined ? deduped : deduped.slice(0, options.maxHits);
-  return limited.sort((a, b) => a.startPos - b.startPos || a.ruleId.localeCompare(b.ruleId));
 }
 
 /** Fabrique le détecteur injectable attendu par `metrics.ts`, `fuzz.ts`, `shadow.ts`. */

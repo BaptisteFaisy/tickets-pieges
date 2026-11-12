@@ -23,9 +23,8 @@ import type {
   SuspicionLevel,
 } from '../core/types';
 import { computeOrigin } from '../core/origin';
+import { detectText } from '../core/detect';
 import { defaultSettings } from '../core/trust-rules';
-import { detectConcealment } from '../core/c1-concealment';
-import { detectAddressing } from '../core/c2-addressing';
 import { contextHits, contextScore, type IssueContext } from '../core/context';
 import { toFindings } from '../core/findings';
 import { computeSuspicion, toIssueState } from '../core/suspicion';
@@ -177,9 +176,16 @@ async function scanSegments(
     const origin = origins[index]!;
     await deps.store.segments.put(segmentRow(id, segment, origin.trustLevel, now));
 
+    // Une seule implémentation de la détection (`src/core/detect.ts`) : C1, C2,
+    // décodage réanalysé et pression lexicale. C'est elle que jouent aussi le
+    // banc d'essai et le site — sinon le jeu d'essai et le ticket divergent
+    // (mesuré le 12 novembre 2026 sur un bloc encodé : « suspect » dans le jeu,
+    // « propre » sur le ticket).
     const hits: LayerHit[] = [
-      ...detectConcealment({ text: segment.text, language: settings.language }),
-      ...detectAddressing(segment.text, { language: settings.language, ignoredPhrases: settings.ignoredPhrases }),
+      ...detectText(segment.text, {
+        language: settings.language,
+        ignoredPhrases: settings.ignoredPhrases,
+      }),
       ...contextHits(segment, context, { now, language: settings.language }),
     ];
     const produced = toFindings({ hits, segment, segmentId: id, language: settings.language, now });

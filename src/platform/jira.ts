@@ -255,12 +255,13 @@ export function createJiraPort(deps: JiraPortDeps = {}): JiraPort {
       journal('segment-text-replaced', issueKey, { field, refId });
     },
     async setEntityProperty(issueKey, key, value) {
-      // L'API « properties » de Jira attend la valeur **enveloppée** dans
-      // `value` : envoyer l'objet nu est refusé (mesuré sur site le
-      // 12 novembre 2026).
+      // Mesuré sur site le 12 novembre 2026 : Jira stocke le corps **tel quel**
+      // comme valeur de la propriété. Envelopper dans `{ value }` produit donc
+      // une double imbrication (`value.value`) que `parsePiegesProperty` ne sait
+      // pas lire — c'est le corps nu qu'il faut envoyer.
       await requestJson(`${issuePath(issueKey)}/properties/${encodeURIComponent(key)}`, {
         method: 'PUT',
-        body: JSON.stringify({ value }),
+        body: JSON.stringify(value),
       });
     },
     async addLabel(issueKey, label) {
