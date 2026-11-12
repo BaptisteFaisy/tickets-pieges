@@ -186,6 +186,11 @@ function actionLabel(lang: Language, action: OutboundAction): string {
   return action.replace(/-/g, ' ');
 }
 
+/** Texte d’exemple préchargé dans la zone de réponse (même contenu en fr/en). */
+export function sampleReply(lang: Language): string {
+  return tr(lang, 'sample');
+}
+
 function splitList(raw: string): string[] {
   return raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
 }
@@ -392,7 +397,7 @@ function fileHtml(lang: Language, check: OutboundFileCheck): string {
   ].join('');
 }
 
-function makeGate(context: OutboundContext, lang: Language, now: string): (text: string) => string | null {
+export function makeGate(context: OutboundContext, lang: Language, now: string): (text: string) => string | null {
   return (text) => {
     const v = checkOutbound(text, context, { stage: 'before', language: lang, now });
     return v.allowed ? (v.redactedText ?? text) : null;
