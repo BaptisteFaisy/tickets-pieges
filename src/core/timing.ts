@@ -9,19 +9,57 @@
 
 /**
  * Étapes instrumentées, dans l'ordre **réel** du pipeline : origine et couches
- * lexicales, puis application du mode (geste synchrone de l'analyse), puis
- * verdict de la couche C3 (asynchrone, hors du chemin de l'événement).
+ * lexicales, mise en file de la couche C3, application du mode (geste
+ * synchrone de l'analyse), journal, puis verdict de la couche C3 (asynchrone,
+ * hors du chemin de l'événement).
+ *
+ * Les cinq étapes du §18 sont nommées. Le journal de la plateforme ne date
+ * pas encore la mise en file C3 ni l'écriture du journal : ces deux étapes
+ * sont déclarées pour que le contrat soit complet et que le manque soit
+ * visible, jamais pour laisser croire qu'elles sont mesurées (docs/SLO.md).
  */
 export const TIMING_STAGES = [
   'created',
   'origin',
   'c1',
   'c2',
+  'enqueued-c3',
   'mode-applied',
+  'journal',
   'c3',
 ] as const;
 
 export type TimingStage = (typeof TIMING_STAGES)[number];
+
+/** Libellés des étapes, dans les deux langues (§21). */
+export const STAGE_LABELS: Record<TimingStage, { fr: string; en: string }> = {
+  created: { fr: 'création de la demande', en: 'request creation' },
+  origin: { fr: 'origine calculée et écrite', en: 'origin computed and written' },
+  c1: { fr: 'couche C1 (dissimulation)', en: 'C1 layer (concealment)' },
+  c2: { fr: 'couche C2 (adresse à une IA)', en: 'C2 layer (AI addressing)' },
+  'enqueued-c3': { fr: 'mise en file C3', en: 'C3 enqueue' },
+  'mode-applied': { fr: 'suspicion et mode appliqués', en: 'suspicion and mode applied' },
+  journal: { fr: 'journal écrit', en: 'journal written' },
+  c3: { fr: 'verdict C3 (file asynchrone)', en: 'C3 verdict (async queue)' },
+};
+
+/**
+ * Types d'événement qui déclenchent une analyse (§18) : création d'une
+ * demande, commentaire, mise à jour, lien entre deux demandes. Un même
+ * budget ne se juge pas de la même façon selon le type : la création est
+ * l'exposition la plus large, un lien n'expose que ce que la source expose.
+ */
+export const EVENT_KINDS = ['creation', 'comment', 'update', 'link'] as const;
+
+export type EventKind = (typeof EVENT_KINDS)[number];
+
+/** Libellés des types d'événement, dans les deux langues (§21). */
+export const EVENT_KIND_LABELS: Record<EventKind, { fr: string; en: string }> = {
+  creation: { fr: 'création de demande', en: 'request creation' },
+  comment: { fr: 'commentaire ajouté ou modifié', en: 'comment added or edited' },
+  update: { fr: 'mise à jour de la demande', en: 'request update' },
+  link: { fr: 'lien entre deux demandes', en: 'link between two requests' },
+};
 
 /** Objectif de délai de la file C3 : 30 s entre l'entrée en file et la reprise. */
 export const C3_OBJECTIVE_MS = 30_000;
@@ -37,6 +75,8 @@ export interface StageMark {
 export interface TimingTrace {
   issueKey: string;
   marks: StageMark[];
+  /** Type d'événement à l'origine de l'analyse, quand il est connu. */
+  eventKind?: EventKind;
 }
 
 export type TimingInterval = 'origin' | 'c1' | 'c2' | 'c3' | 'mode';
@@ -65,8 +105,9 @@ export const INTERVAL_LABELS: Record<TimingInterval, string> = {
   c3: 'verdict C3 (file asynchrone)',
 };
 
-export function emptyTrace(issueKey: string): TimingTrace {
-  return { issueKey, marks: [] };
+export function emptyTrace(issueKey: string, eventKind?: EventKind): TimingTrace {
+  if (eventKind === undefined) return { issueKey, marks: [] };
+  return { issueKey, marks: [], eventKind };
 }
 
 /**
@@ -85,7 +126,8 @@ export function markStage(trace: TimingTrace, stage: TimingStage, atMs: number):
   const marks = trace.marks.filter((mark) => mark.stage !== stage);
   marks.push({ stage, atMs: monotonic });
   marks.sort((a, b) => TIMING_STAGES.indexOf(a.stage) - TIMING_STAGES.indexOf(b.stage));
-  return { issueKey: trace.issueKey, marks };
+  if (trace.eventKind === undefined) return { issueKey: trace.issueKey, marks };
+  return { issueKey: trace.issueKey, marks, eventKind: trace.eventKind };
 }
 
 /** Durée entre deux étapes, ou null si l'une des deux n'a pas été observée. */
@@ -117,6 +159,43 @@ export function intervalsOf(trace: TimingTrace): Record<TimingInterval, number |
  */
 export function exposureWindowMs(trace: TimingTrace): number | null {
   return intervalsOf(trace).mode;
+}
+
+/**
+ * Regroupe les traces par type d'événement (création, commentaire, mise à
+ * jour, lien). Un type sans trace reste une liste vide : rien n'est inventé.
+ */
+export function groupByEventKind(traces: readonly TimingTrace[]): Record<EventKind, TimingTrace[]> {
+  const groups = new Map<EventKind, TimingTrace[]>();
+  for (const kind of EVENT_KINDS) groups.set(kind, []);
+  for (const trace of traces) {
+    const kind = trace.eventKind;
+    if (!kind) continue;
+    groups.get(kind)?.push(trace);
+  }
+  const out = {} as Record<EventKind, TimingTrace[]>;
+  for (const kind of EVENT_KINDS) out[kind] = groups.get(kind) ?? [];
+  return out;
+}
+
+/**
+ * Pire durée observée par type d'événement, entre deux étapes. Un type sans
+ * mesure vaut `null` : il n'est ni tenu ni dépassé.
+ */
+export function durationsByEventKind(
+  traces: readonly TimingTrace[],
+  from: TimingStage,
+  to: TimingStage,
+): Record<EventKind, number | null> {
+  const groups = groupByEventKind(traces);
+  const out = {} as Record<EventKind, number | null>;
+  for (const kind of EVENT_KINDS) {
+    const values = (groups[kind] ?? [])
+      .map((trace) => durationMs(trace, from, to))
+      .filter((value): value is number => value !== null);
+    out[kind] = values.length > 0 ? Math.max(...values) : null;
+  }
+  return out;
 }
 
 export type ObjectiveStatus = 'ok' | 'late' | 'unknown';
