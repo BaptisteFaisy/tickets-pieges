@@ -25,6 +25,7 @@ import {
 import { TABLE } from '../platform/sql';
 import type { EventRow, Store } from '../platform/schema';
 import { verifyToken } from '../hook/token';
+import { SqlBudget } from '../platform/budget';
 import type { BudgetReading } from '../platform/budget';
 import type { Language } from '../core/types';
 import {
@@ -304,6 +305,11 @@ function budgetSnapshot(reading: BudgetReading | null): BudgetSnapshot | null {
 /** Les dépendances de production (Forge), résolues à la demande. */
 async function forgeDeps(): Promise<DiagnosticDeps> {
   const db = await import('../platform/db');
+  // Le diagnostic branche son **propre** budget : ses lectures sont ainsi
+  // comptées, et le rapport dit ce qu'il coûte au quota (une lecture de
+  // vérification du schéma, seize comptes de lignes, deux lectures de tiroir).
+  const budget = new SqlBudget();
+  db.setBudget(budget);
   await db.ensureSchema();
   const store: Store = db.createSqlStore();
   return {
@@ -318,7 +324,9 @@ async function forgeDeps(): Promise<DiagnosticDeps> {
     listTables: async () => {
       const tables: TableCount[] = [];
       for (const name of TABLE_NAMES) {
-        tables.push({ name, rows: await countRows(name) });
+        const rows = await countRows(name);
+        budget.countRead();
+        tables.push({ name, rows });
       }
       return tables;
     },
