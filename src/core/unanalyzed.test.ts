@@ -40,7 +40,7 @@ describe('summarizeUnanalyzed', () => {
     expect(coverage.formats.map((f) => f.format)).toEqual(['pdf', 'image']);
     expect(coverage.formats[0]).toEqual({ format: 'pdf', parts: 2, bytes: 100 });
     expect(coverage.reasons.map((r) => r.reason)).toEqual(['oversize', 'image', 'unsupported-format']);
-    expect(coverage.reasons[0].bytes).toBe(90);
+    expect(coverage.reasons[0]?.bytes).toBe(90);
   });
 
   it('reste à zéro quand tout est analysé', () => {
@@ -63,7 +63,7 @@ describe('summarizeUnanalyzed', () => {
   it('borne les tailles négatives ou fractionnaires à zéro', () => {
     const coverage = summarizeUnanalyzed([part('a.pdf', 'pdf', -50, 'oversize'), part('b.pdf', 'pdf', 12.7, 'oversize')]);
     expect(coverage.bytes).toBe(12);
-    expect(coverage.formats[0].bytes).toBe(12);
+    expect(coverage.formats[0]?.bytes).toBe(12);
   });
 });
 
@@ -96,8 +96,8 @@ describe('projectCoverage', () => {
     ]);
     expect(project.projectKey).toBe('SUP');
     expect(project.tickets).toBe(2);
-    expect(project.byTicket[0].ticketId).toBe('SUP-1');
-    expect(project.byTicket[0].coverage.byteShare).toBe(1);
+    expect(project.byTicket[0]?.ticketId).toBe('SUP-1');
+    expect(project.byTicket[0]?.coverage.byteShare).toBe(1);
     expect(project.coverage.parts).toBe(2);
     expect(project.coverage.bytes).toBe(900);
   });
