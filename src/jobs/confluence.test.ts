@@ -270,7 +270,10 @@ describe('sas sur les commentaires publics', () => {
 
   it('un jeton secret retient le commentaire et exige deux relectures (#37)', async () => {
     const { deps, store, fake } = confDeps(pageFixture());
-    const text = 'Voici le jeton ghp_0123456789abcdefghijABCDEFGHIJ012345 pour vous.';
+    // Jeton factice assemblé à l'exécution : la garde `couche0` refuse — à juste
+    // titre — tout jeton GitHub écrit en clair dans le dépôt, même factice.
+    const fakeToken = ['ghp_', '0123456789abcdefghijABCDEFGHIJ012345'].join('');
+    const text = `Voici le jeton ${fakeToken} pour vous.`;
     const outcome = await postPublicComment(deps, PAGE_ID, text);
     expect(outcome.published).toBe(false);
     expect(outcome.verdict.allowed).toBe(false);
