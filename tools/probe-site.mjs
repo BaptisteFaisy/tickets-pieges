@@ -183,8 +183,9 @@ function writeSection(section, docPath, dryRun) {
     return;
   }
   const current = existsSync(docPath) ? readFileSync(docPath, 'utf8') : '';
-  const start = current.indexOf(DEBUT);
-  const end = current.indexOf(FIN);
+  // Dernière occurrence : le document peut citer les marqueurs dans son prose.
+  const start = current.lastIndexOf(DEBUT);
+  const end = start >= 0 ? current.indexOf(FIN, start) : -1;
   const next =
     start >= 0 && end > start
       ? current.slice(0, start) + section + current.slice(end + FIN.length)
