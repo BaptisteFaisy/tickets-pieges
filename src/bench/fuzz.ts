@@ -79,6 +79,16 @@ export interface Mutant {
   readonly inert: boolean;
 }
 
+/** Empreinte FNV-1a 32 bits d'une chaîne : graine stable propre à chaque entrée. */
+export function hashSeed(text: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash >>> 0;
+}
+
 /** Générateur pseudo-aléatoire à graine — reproductible, sans `Math.random`. */
 export function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
@@ -194,23 +204,25 @@ export function mutateEntry(entry: CorpusEntry, options: MutationOptions = {}): 
   const seed = options.seed ?? 1;
   const max = Math.min(options.maxPerEntry ?? MAX_MUTANTS_PER_ENTRY, MAX_MUTANTS_PER_ENTRY);
   const played = (options.only ?? MUTATIONS).filter((mutation) => MUTATIONS.includes(mutation));
-  // Rotation déterministe : quand le plafond est bas, chaque entrée ne joue pas
-  // toujours les mêmes mutations — la couverture des cinq reste équilibrée.
-  const rotation = played.length === 0 ? 0 : (seed + entry.id.length) % played.length;
+  // Rotation déterministe par empreinte de l'identifiant : quand le plafond est
+  // bas, chaque entrée ne joue pas toujours les mêmes mutations — la couverture
+  // des cinq reste équilibrée sur tout le corpus.
+  const entrySeed = hashSeed(`${seed}:${entry.id}`);
+  const rotation = played.length === 0 ? 0 : entrySeed % played.length;
   const ordered = [...played.slice(rotation), ...played.slice(0, rotation)];
   const mutants: Mutant[] = [];
   for (let i = 0; i < ordered.length && mutants.length < max; i += 1) {
     const mutation = ordered[i];
     if (!mutation) continue;
-    const random = mulberry32(seed + i * 7919 + entry.id.length * 131);
+    const random = mulberry32(entrySeed + i * 7919);
     const segments = applyMutation(entry.text, mutation, random).filter((part) => part.length <= MAX_MUTANT_CHARS);
     if (segments.length === 0) continue;
     const text = segments.join(' \u2029 ');
     mutants.push({
-      id: `${entry.id}~${mutation}~${seed + i}`,
+      id: `${entry.id}~${mutation}~${entrySeed + i}`,
       entryId: entry.id,
       mutation,
-      seed: seed + i,
+      seed: entrySeed + i,
       text,
       segments,
       inert: segments.length === 1 && segments[0] === entry.text,
