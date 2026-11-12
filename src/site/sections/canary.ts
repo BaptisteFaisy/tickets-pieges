@@ -19,6 +19,15 @@ import {
   type HitObservation,
 } from '../../core/canary';
 import type { Canary, CanaryActorType, CanaryHit } from '../../core/types';
+import {
+  LURE_KINDS,
+  createLure,
+  describeIncident,
+  detectLureLeak,
+  severityFor,
+  type Lure,
+  type LureKind,
+} from '../../core/lure';
 import { badge, buttonHtml, field, grid, heading, kv, note, panel, pre, selectHtml, textareaHtml } from '../dom';
 import { byId } from '../dom';
 import type { Section, SectionContext } from './types';
@@ -57,6 +66,17 @@ const LABELS = {
   depthOf: { fr: 'Profondeur d’obéissance', en: 'Obedience depth' },
   rate: { fr: 'Taux d’obéissance (session)', en: 'Obedience rate (session)' },
   expired: { fr: 'Échéance dépassée → clôture automatique', en: 'Expiry passed → auto-close' },
+  plant: { fr: 'Déposer un appât (fausse donnée marquée)', en: 'Plant a lure (marked fake data)' },
+  lureKind: { fr: 'Frappe d’appât', en: 'Lure kind' },
+  lurePlanted: { fr: 'Appât déposé', en: 'Lure planted' },
+  lureValue: { fr: 'Fausse valeur (marquée)', en: 'Fake value (marked)' },
+  lureSeverity: { fr: 'Gravité', en: 'Severity' },
+  leakText: { fr: 'Texte suspect (export, message…)', en: 'Suspect text (export, message…)' },
+  leakCheck: { fr: 'Vérifier la fuite', en: 'Check for leak' },
+  leakSample: { fr: 'Coller un exemple compromis', en: 'Paste a compromised sample' },
+  incident: { fr: 'Incident d’exfiltration', en: 'Exfiltration incident' },
+  incidentNone: { fr: 'Aucun appât dans ce texte.', en: 'No lure found in this text.' },
+  needLure: { fr: 'Déposez d’abord un appât.', en: 'Plant a lure first.' },
   hint: {
     fr: 'Tout se calcule dans votre navigateur : aucun appel réseau, rien ne quitte la page.',
     en: 'Everything runs in your browser: no network call, nothing leaves this page.',
@@ -120,6 +140,39 @@ export function hitHtml(summary: CanarySummary, depth: number, launched: number,
   ].join('');
 }
 
+/** Fausse valeur + marqueur unique + gravité (#46). */
+export function lureHtml(lure: Lure, ctx: SectionContext): string {
+  return [
+    badge(label(ctx, 'lurePlanted'), 'warn'),
+    kv([
+      [label(ctx, 'lureKind'), lure.kind],
+      [label(ctx, 'lureValue'), lure.value],
+      ['marqueur', lure.marker],
+      [label(ctx, 'lureSeverity'), severityFor(lure.kind)],
+    ]),
+  ].join('');
+}
+
+/** Exemple de texte où l'appât a « fuité » : démo de la détection en deux clics. */
+export function leakSampleText(lure: Lure, lang: 'fr' | 'en'): string {
+  return lang === 'fr'
+    ? `export-clients.csv — ligne 12 : ${lure.value}`
+    : `customers-export.csv — row 12: ${lure.value}`;
+}
+
+/** Verdict du contrôle : incident décrit par le domaine, ou rien. */
+export function leakHtml(lure: Lure | null, text: string, foundIn: string, at: string, ctx: SectionContext): string {
+  if (!lure) return note(label(ctx, 'needLure'));
+  const incident = detectLureLeak({ lure, text, foundIn, at });
+  if (!incident) return note(label(ctx, 'incidentNone'));
+  return [
+    badge(label(ctx, 'incident'), 'bad'),
+    badge(incident.severity, incident.severity === 'critical' ? 'bad' : 'warn'),
+    note(describeIncident(ctx.lang, incident)),
+    kv([['trouvé dans', incident.foundIn], ['par', incident.matchedBy], ['à', incident.at]]),
+  ].join('');
+}
+
 /** Formulaire de la section. */
 function form(ctx: SectionContext): string {
   return panel(
@@ -134,6 +187,11 @@ function form(ctx: SectionContext): string {
       field(label(ctx, 'depth'), selectHtml('c-depth', [['0', '0'], ['1', '1'], ['2', '2']], '2')) +
       buttonHtml('c-simulate', label(ctx, 'simulate'), 'ghost') +
       buttonHtml('c-close', label(ctx, 'close'), 'ghost') +
+      field(label(ctx, 'lureKind'), selectHtml('c-lure-kind', LURE_KINDS.map((kind) => [kind, kind]))) +
+      buttonHtml('c-plant', label(ctx, 'plant'), 'ghost') +
+      field(label(ctx, 'leakText'), textareaHtml('c-leak', 3)) +
+      buttonHtml('c-leak-check', label(ctx, 'leakCheck'), 'ghost') +
+      buttonHtml('c-leak-sample', label(ctx, 'leakSample'), 'ghost') +
       note(label(ctx, 'hint')),
   );
 }
@@ -143,6 +201,7 @@ interface Session {
   canary: Canary | null;
   hits: CanaryHit[];
   launched: number;
+  lure: Lure | null;
 }
 
 function readIssueKey(root: HTMLElement): string {
@@ -208,11 +267,41 @@ function closeAtExpiry(root: HTMLElement, session: Session, ctx: SectionContext)
   show(root, ctx, `${badge(label(ctx, 'expired'), 'warn')}${canaryCard(session.canary, ctx)}`);
 }
 
+/** Dépose d'un appât : valeur factice et marqueur unique, liés au ticket visé (#46). */
+function plant(root: HTMLElement, session: Session, ctx: SectionContext): void {
+  const issueKey = readIssueKey(root);
+  const kind = (byId<HTMLSelectElement>(root, 'c-lure-kind')?.value ?? LURE_KINDS[0]) as LureKind;
+  session.lure = createLure({
+    issueId: issueKey.toLowerCase(),
+    issueKey,
+    plantedBy: 'demo-visiteur',
+    kind,
+    now: ctx.now,
+  });
+  show(root, ctx, lureHtml(session.lure, ctx));
+}
+
+/** Contrôle d'un texte : l'appât qui réapparaît ailleurs est un incident (§43). */
+function checkLeak(root: HTMLElement, session: Session, ctx: SectionContext): void {
+  const text = byId<HTMLTextAreaElement>(root, 'c-leak')?.value ?? '';
+  show(root, ctx, leakHtml(session.lure, text, 'export-csv', ctx.now, ctx));
+}
+
+/** Remplit le texte suspect avec un exemple déjà compromis. */
+function fillLeakSample(root: HTMLElement, session: Session, ctx: SectionContext): void {
+  const node = byId<HTMLTextAreaElement>(root, 'c-leak');
+  if (!node) return;
+  node.value = session.lure ? leakSampleText(session.lure, ctx.lang) : '';
+}
+
 function mount(root: HTMLElement, ctx: SectionContext): void {
-  const session: Session = { canary: null, hits: [], launched: 0 };
+  const session: Session = { canary: null, hits: [], launched: 0, lure: null };
   byId<HTMLButtonElement>(root, 'c-launch')?.addEventListener('click', () => launch(root, session, ctx));
   byId<HTMLButtonElement>(root, 'c-simulate')?.addEventListener('click', () => simulate(root, session, ctx));
   byId<HTMLButtonElement>(root, 'c-close')?.addEventListener('click', () => closeAtExpiry(root, session, ctx));
+  byId<HTMLButtonElement>(root, 'c-plant')?.addEventListener('click', () => plant(root, session, ctx));
+  byId<HTMLButtonElement>(root, 'c-leak-check')?.addEventListener('click', () => checkLeak(root, session, ctx));
+  byId<HTMLButtonElement>(root, 'c-leak-sample')?.addEventListener('click', () => fillLeakSample(root, session, ctx));
 }
 
 function render(ctx: SectionContext): string {
