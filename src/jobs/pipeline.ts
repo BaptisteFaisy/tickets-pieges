@@ -189,11 +189,34 @@ async function scanSegments(
     findings.push(...produced);
 
     if (settings.c3Enabled && isExternal(origin.trustLevel)) {
-      queued += 1;
-      await deps.enqueueC3?.({ issueId: segment.issueId, segmentId: id });
+      queued += await enqueueSafely(deps, segment.issueId, id);
     }
   }
   return { origins, findings, queued };
+}
+
+
+/**
+ * Met la couche C3 en file **sans jamais faire échouer l'analyse**.
+ *
+ * L'origine, le bandeau et la propriété indexée doivent être en place même si la
+ * file est indisponible (§18 : l'origine est posée dès l'étape 1). Un échec de
+ * mise en file est journalisé, pas propagé — mesuré sur site le 12 novembre
+ * 2026 : `Queue.push` répondait 400 et la demande n'était plus analysée du tout.
+ */
+async function enqueueSafely(deps: PipelineDeps, issueId: string, segmentId: string): Promise<number> {
+  if (!deps.enqueueC3) return 0;
+  try {
+    await deps.enqueueC3({ issueId, segmentId });
+    return 1;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    await deps.store.events.append('c3-enqueue-failed', issueId, {
+      segmentId,
+      reason: reason.slice(0, 200),
+    });
+    return 0;
+  }
 }
 
 /** La ligne `segment` du §19. */

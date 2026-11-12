@@ -151,6 +151,34 @@ def divergence(sample: dict) -> list[str]:
     return notes
 
 
+def seed_one(sample: dict, done: dict, options: argparse.Namespace, auth: tuple[str, str]) -> dict | None:
+    """Sème une demande du jeu ; rend sa ligne de rapport, ou None si rien à faire."""
+    sample_id = sample["id"]
+    if sample_id in done:
+        log(f"  = {sample_id} déjà semé ({done[sample_id].get('issueKey')})")
+        return None
+    if options.dry_run:
+        log(f"  · {sample_id} → {sample['summary'][:52]}")
+        return None
+    created = create_request(sample, options, auth)
+    if not created.get("ok"):
+        log(f"  ! {sample_id} : création refusée ({created.get('status')}) {str(created.get('detail'))[:120]}")
+        return None
+    comments = add_comments(sample, created["issueKey"], options, auth)
+    time.sleep(0.8)
+    log(f"  + {sample_id} → {created['issueKey']} ({created['gesture']}, {comments} commentaire(s))")
+    return {
+        "sampleId": sample_id,
+        "issueKey": created["issueKey"],
+        "issueId": created["issueId"],
+        "gesture": created["gesture"],
+        "expected": sample.get("expected"),
+        "comments": comments,
+        "divergences": divergence(sample),
+        "seededAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
 def seed(options: argparse.Namespace) -> int:
     auth = (options.email, Path(options.token_file).expanduser().read_text(encoding="utf-8").strip())
     dataset = load_dataset(options.lang)
@@ -173,33 +201,9 @@ def seed(options: argparse.Namespace) -> int:
 
     rows = list(done.values())
     for sample in dataset:
-        sample_id = sample["id"]
-        if sample_id in done:
-            log(f"  = {sample_id} déjà semé ({done[sample_id].get('issueKey')})")
-            continue
-        if options.dry_run:
-            log(f"  · {sample_id} → {sample['summary'][:52]}")
-            continue
-        created = create_request(sample, options, auth)
-        if not created.get("ok"):
-            log(f"  ! {sample_id} : création refusée ({created.get('status')}) {str(created.get('detail'))[:120]}")
-            continue
-        comments = add_comments(sample, created["issueKey"], options, auth)
-        notes = divergence(sample)
-        rows.append(
-            {
-                "sampleId": sample_id,
-                "issueKey": created["issueKey"],
-                "issueId": created["issueId"],
-                "gesture": created["gesture"],
-                "expected": sample.get("expected"),
-                "comments": comments,
-                "divergences": notes,
-                "seededAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            }
-        )
-        log(f"  + {sample_id} → {created['issueKey']} ({created['gesture']}, {comments} commentaire(s))")
-        time.sleep(0.8)
+        row = seed_one(sample, done, options, auth)
+        if row is not None:
+            rows.append(row)
 
     payload = {
         "site": options.site,
