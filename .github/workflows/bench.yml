@@ -1,0 +1,89 @@
+name: bench (nightly)
+
+# Banc de détection hors ligne (#15, #16, #17, #95) : joue le corpus étiqueté
+# (`data/corpus/*.json`), mesure rappel / précision / faux positifs par `ruleId`,
+# la robustesse aux mutations et l'écart au verdict humain en mode shadow.
+#
+# Nightly + déclenchement manuel : le banc informe, il ne bloque pas une PR
+# (la CI `ci` joue déjà les tests unitaires du banc). Il échoue seulement si le
+# corpus est invalide — c'est-à-dire si la matière première du banc est cassée.
+#
+# Budget : règle user, 5 minutes maximum par job. Aucun réseau applicatif :
+# esbuild assemble le domaine en local, aucune donnée ne quitte le runner hors
+# journaux et artefact de rapport (empreintes et compteurs, jamais du texte).
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bench:
+    name: bench
+    runs-on: [self-hosted, linux, x64, tickets-pieges-worker]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          clean: false
+
+      - name: Nettoyage du workspace
+        shell: bash
+        run: git clean -ffdx -e node_modules
+
+      - name: Temporaires sur le disque (jamais dans le tmpfs /tmp)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cache/ci-tmp"
+          echo "TMPDIR=$HOME/.cache/ci-tmp" >> "$GITHUB_ENV"
+
+      - name: Node du worker (hors PATH par défaut)
+        shell: bash
+        run: |
+          set -euo pipefail
+          NODE_BIN="$HOME/.local/node/bin"
+          if [ ! -x "$NODE_BIN/node" ]; then
+            echo "::error::Node introuvable dans $NODE_BIN (installation du worker absente)"
+            exit 1
+          fi
+          echo "$NODE_BIN" >> "$GITHUB_PATH"
+          "$NODE_BIN/node" --version
+
+      - name: Dépendances (cache du runner, réinstallation si verrou changé)
+        shell: bash
+        run: |
+          set -euo pipefail
+          HASH="$(sha256sum package-lock.json | cut -d' ' -f1)"
+          STAMP="node_modules/.ci-lock-hash"
+          if [ -d node_modules ] && [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$HASH" ]; then
+            echo "cache node_modules à jour ($HASH) — pas de réinstallation"
+          else
+            npm ci --prefer-offline --no-audit --no-fund
+            printf '%s' "$HASH" > "$STAMP"
+          fi
+
+      - name: Banc de détection (corpus, mutations, shadow)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cache/ci-tmp"
+          node tools/bench.mjs --json "$HOME/.cache/ci-tmp/bench-report.json"
+          cp "$HOME/.cache/ci-tmp/bench-report.json" bench-report.json
+
+      - name: Rapport du banc (artefact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-report
+          path: bench-report.json
+          retention-days: 30
+          if-no-files-found: warn
