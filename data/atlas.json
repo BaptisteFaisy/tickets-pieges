@@ -37,126 +37,187 @@
       "descEn": "The technique is not analysed by the product; nothing is claimed about it."
     }
   ],
+  "families": [
+    {
+      "id": "prompt-injection",
+      "labelFr": "Injection de consignes",
+      "labelEn": "Prompt injection"
+    },
+    {
+      "id": "dissimulation",
+      "labelFr": "Dissimulation et masquage",
+      "labelEn": "Concealment and masquerading"
+    },
+    {
+      "id": "exfiltration",
+      "labelFr": "Exfiltration et fuite de données",
+      "labelEn": "Exfiltration and data leakage"
+    },
+    {
+      "id": "outils-agent",
+      "labelFr": "Invocation d’outils par l’agent",
+      "labelEn": "Agent tool invocation"
+    },
+    {
+      "id": "preparation-attaque",
+      "labelFr": "Préparation de l’attaque (comptes, identité)",
+      "labelEn": "Attack preparation (accounts, identity)"
+    },
+    {
+      "id": "deni-de-service-agent",
+      "labelFr": "Déni de service d’agent",
+      "labelEn": "Agent denial of service"
+    },
+    {
+      "id": "corruption-de-memoire",
+      "labelFr": "Corruption de mémoire et de contexte",
+      "labelEn": "Memory and context corruption"
+    }
+  ],
   "techniques": [
     {
       "id": "AML.T0011.000",
       "name": "Unsafe AI Artifacts",
-      "nameFr": "Artefacts non sûrs"
+      "nameFr": "Artefacts non sûrs",
+      "family": "dissimulation"
     },
     {
       "id": "AML.T0011.003",
       "name": "Malicious Link",
-      "nameFr": "Lien malveillant"
+      "nameFr": "Lien malveillant",
+      "family": "dissimulation"
     },
     {
       "id": "AML.T0021",
       "name": "Establish Accounts",
-      "nameFr": "Création de comptes"
+      "nameFr": "Création de comptes",
+      "family": "preparation-attaque"
     },
     {
       "id": "AML.T0025",
       "name": "Exfiltration via Cyber Means",
-      "nameFr": "Exfiltration par voie numérique"
+      "nameFr": "Exfiltration par voie numérique",
+      "family": "exfiltration"
     },
     {
       "id": "AML.T0029",
       "name": "Denial of AI Service",
-      "nameFr": "Déni de service de l’IA"
+      "nameFr": "Déni de service de l’IA",
+      "family": "deni-de-service-agent"
     },
     {
       "id": "AML.T0034.002",
       "name": "Agentic Resource Consumption",
-      "nameFr": "Consommation de ressources par l’agent"
+      "nameFr": "Consommation de ressources par l’agent",
+      "family": "deni-de-service-agent"
     },
     {
       "id": "AML.T0046",
       "name": "Spamming AI System with Chaff Data",
-      "nameFr": "Envoi de données de remplissage"
+      "nameFr": "Envoi de données de remplissage",
+      "family": "dissimulation"
     },
     {
       "id": "AML.T0051",
       "name": "LLM Prompt Injection",
-      "nameFr": "Injection de consigne dans un modèle de langage"
+      "nameFr": "Injection de consigne dans un modèle de langage",
+      "family": "prompt-injection"
     },
     {
       "id": "AML.T0051.001",
       "name": "Indirect",
-      "nameFr": "Injection indirecte"
+      "nameFr": "Injection indirecte",
+      "family": "prompt-injection"
     },
     {
       "id": "AML.T0053",
       "name": "AI Agent Tool Invocation",
-      "nameFr": "Invocation d’un outil par l’agent"
+      "nameFr": "Invocation d’un outil par l’agent",
+      "family": "outils-agent"
     },
     {
       "id": "AML.T0054",
       "name": "LLM Jailbreak",
-      "nameFr": "Contournement d’instruction (jailbreak)"
+      "nameFr": "Contournement d’instruction (jailbreak)",
+      "family": "prompt-injection"
     },
     {
       "id": "AML.T0055",
       "name": "Unsecured Credentials",
-      "nameFr": "Identifiants exposés"
+      "nameFr": "Identifiants exposés",
+      "family": "exfiltration"
     },
     {
       "id": "AML.T0057",
       "name": "LLM Data Leakage",
-      "nameFr": "Fuite de données par le modèle"
+      "nameFr": "Fuite de données par le modèle",
+      "family": "exfiltration"
     },
     {
       "id": "AML.T0058",
       "name": "Publish Poisoned Models",
-      "nameFr": "Publication de modèles empoisonnés"
+      "nameFr": "Publication de modèles empoisonnés",
+      "family": "corruption-de-memoire"
     },
     {
       "id": "AML.T0065",
       "name": "LLM Prompt Crafting",
-      "nameFr": "Façonnage de consigne"
+      "nameFr": "Façonnage de consigne",
+      "family": "prompt-injection"
     },
     {
       "id": "AML.T0068",
       "name": "LLM Prompt Obfuscation",
-      "nameFr": "Obscurcissement de consigne"
+      "nameFr": "Obscurcissement de consigne",
+      "family": "dissimulation"
     },
     {
       "id": "AML.T0070",
       "name": "RAG Poisoning",
-      "nameFr": "Empoisonnement d’un corpus RAG"
+      "nameFr": "Empoisonnement d’un corpus RAG",
+      "family": "corruption-de-memoire"
     },
     {
       "id": "AML.T0073",
       "name": "Impersonation",
-      "nameFr": "Usurpation d’identité"
+      "nameFr": "Usurpation d’identité",
+      "family": "preparation-attaque"
     },
     {
       "id": "AML.T0074",
       "name": "Masquerading",
-      "nameFr": "Masquage (apparence trompeuse)"
+      "nameFr": "Masquage (apparence trompeuse)",
+      "family": "dissimulation"
     },
     {
       "id": "AML.T0080",
       "name": "AI Agent Context Poisoning",
-      "nameFr": "Empoisonnement du contexte d’un agent"
+      "nameFr": "Empoisonnement du contexte d’un agent",
+      "family": "corruption-de-memoire"
     },
     {
       "id": "AML.T0086",
       "name": "Exfiltration via AI Agent Tool Invocation",
-      "nameFr": "Exfiltration par un outil de l’agent"
+      "nameFr": "Exfiltration par un outil de l’agent",
+      "family": "exfiltration"
     },
     {
       "id": "AML.T0092",
       "name": "Manipulate User LLM Chat History",
-      "nameFr": "Manipulation de l’historique de conversation"
+      "nameFr": "Manipulation de l’historique de conversation",
+      "family": "corruption-de-memoire"
     },
     {
       "id": "AML.T0094",
       "name": "Delay Execution of LLM Instructions",
-      "nameFr": "Report de l’exécution d’une consigne"
+      "nameFr": "Report de l’exécution d’une consigne",
+      "family": "prompt-injection"
     },
     {
       "id": "AML.T0098",
       "name": "AI Agent Tool Credential Harvesting",
-      "nameFr": "Vol d’identifiants par un outil de l’agent"
+      "nameFr": "Vol d’identifiants par un outil de l’agent",
+      "family": "exfiltration"
     }
   ],
   "rules": [
