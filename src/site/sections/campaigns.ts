@@ -9,8 +9,17 @@
  */
 
 import { alertsFor, groupIntoCampaigns } from '../../core/campaigns';
-import type { Campaign, Finding } from '../../core/types';
-import { badge, buttonHtml, field, note, panel, table, textareaHtml } from '../dom';
+import {
+  COPY_OVERLAP_THRESHOLD,
+  SHINGLE_SIZE,
+  fingerprint,
+  findCopies,
+  isCopy,
+  overlapOf,
+  type CopyMatch,
+} from '../../core/fingerprint';
+import type { Campaign, Finding, TextFingerprint } from '../../core/types';
+import { badge, buttonHtml, field, heading, kv, list, note, panel, table, textareaHtml } from '../dom';
 import type { Section, SectionContext } from './types';
 
 /** Textes visibles de la section, dans les deux langues (brief règle 9). */
@@ -31,6 +40,28 @@ const LABELS = {
   colTickets: { fr: 'Tickets concernés', en: 'Affected tickets' },
   colFirst: { fr: 'Première vue', en: 'First seen' },
   colLast: { fr: 'Dernière vue', en: 'Last seen' },
+  copyHeading: {
+    fr: 'Recopie d’un texte externe par un interne',
+    en: 'Internal copy of an external text',
+  },
+  copyKnown: { fr: 'Texte externe déjà vu (T0/T1)', en: 'Known external text (T0/T1)' },
+  copyCand: { fr: 'Texte interne candidat', en: 'Internal candidate text' },
+  copyRun: { fr: 'Comparer les empreintes', en: 'Compare fingerprints' },
+  copyHint: {
+    fr: 'L’origine suit le texte : un texte externe collé ailleurs par un compte interne '
+      + 'reste externe. Comparaison déterministe — empreintes glissantes, aucun réseau.',
+    en: 'Origin follows the text: an external text pasted elsewhere by an internal account '
+      + 'stays external. Deterministic comparison — sliding shingles, no network.',
+  },
+  copyYes: { fr: 'recopie détectée', en: 'copy detected' },
+  copyNo: { fr: 'pas une recopie', en: 'not a copy' },
+  overlap: { fr: 'Recouvrement', en: 'Overlap' },
+  threshold: { fr: 'Seuil de recopie', en: 'Copy threshold' },
+  groups: { fr: 'Groupes de mots (empreintes)', en: 'Word groups (shingles)' },
+  knownHash: { fr: 'Empreinte du texte externe', en: 'External text fingerprint' },
+  candHash: { fr: 'Empreinte du texte interne', en: 'Internal text fingerprint' },
+  matches: { fr: 'Passages connus recouverts', en: 'Known passages matched' },
+  noMatch: { fr: 'Aucun passage connu ne recouvre ce texte.', en: 'No known passage overlaps this text.' },
 } as const;
 
 type LabelKey = keyof typeof LABELS;
@@ -111,15 +142,92 @@ function campaignsBlock(ctx: SectionContext): string {
   );
 }
 
+/** Texte externe de démonstration (même cas que `fr-14-colle` du jeu d'essai). */
+const DEMO_EXTERNAL = 'Bonjour, mon export de factures échoue depuis mardi matin avec le message '
+  + '« délai dépassé ». Pouvez-vous regarder ? Merci d’avance.';
+
+/** Le même texte, recopié par un agent interne avec quelques mots autour. */
+const DEMO_INTERNAL = `Courriel du client, recopié tel quel :\n\n${DEMO_EXTERNAL}\n\nÀ traiter.`;
+
+/** Résultat de la comparaison de deux empreintes : ce que voit le visiteur. */
+export interface CopyComparison {
+  known: TextFingerprint;
+  candidate: TextFingerprint;
+  overlap: number;
+  copy: boolean;
+  matches: CopyMatch[];
+}
+
+/**
+ * Compare un texte externe connu et un texte interne candidat avec les
+ * empreintes du domaine — aucune règle de similarité recopiée ici.
+ */
+export function compareTexts(knownText: string, candidateText: string, knownId = 'ext-1'): CopyComparison {
+  const known = fingerprint(knownText);
+  const candidate = fingerprint(candidateText);
+  return {
+    known,
+    candidate,
+    overlap: overlapOf(known, candidate),
+    copy: isCopy(known, candidate),
+    matches: findCopies(candidate, [{ id: knownId, fingerprint: known }]),
+  };
+}
+
+function percent(value: number): string {
+  return `${Math.round(value * 100)} %`;
+}
+
+/** Verdict de recopie et chiffres de la comparaison, via les briques échappées. */
+export function renderCopies(cmp: CopyComparison, ctx: SectionContext): string {
+  const verdict = cmp.copy
+    ? badge(label(ctx, 'copyYes'), 'bad')
+    : badge(label(ctx, 'copyNo'), 'ok');
+  const matches = cmp.matches.length
+    ? list(cmp.matches.map((match) => `${match.segmentId} — ${percent(match.overlap)}`))
+    : note(label(ctx, 'noMatch'));
+  return `${verdict}${kv([
+    [label(ctx, 'overlap'), percent(cmp.overlap)],
+    [label(ctx, 'threshold'), `${percent(COPY_OVERLAP_THRESHOLD)} · ${SHINGLE_SIZE} mots`],
+    [label(ctx, 'groups'), `${cmp.known.shingles.length} / ${cmp.candidate.shingles.length}`],
+    [label(ctx, 'knownHash'), `${cmp.known.hash.slice(0, 16)}…`],
+    [label(ctx, 'candHash'), `${cmp.candidate.hash.slice(0, 16)}…`],
+  ])}${heading(label(ctx, 'matches'))}${matches}`;
+}
+
+/** Compare les deux textes collés et affiche le verdict. */
+function runCopies(root: HTMLElement, ctx: SectionContext): void {
+  const out = root.querySelector<HTMLDivElement>('#c-copy-result');
+  const known = root.querySelector<HTMLTextAreaElement>('#c-copy-known');
+  const cand = root.querySelector<HTMLTextAreaElement>('#c-copy-cand');
+  if (!out || !known || !cand) return;
+  out.innerHTML = renderCopies(compareTexts(known.value, cand.value), ctx);
+}
+
+/** Bloc « détection de recopie » du formulaire. */
+function copyBlock(ctx: SectionContext): string {
+  return panel(
+    heading(label(ctx, 'copyHeading'))
+      + note(label(ctx, 'copyHint'))
+      + field(label(ctx, 'copyKnown'), textareaHtml('c-copy-known', 4, '', DEMO_EXTERNAL))
+      + field(label(ctx, 'copyCand'), textareaHtml('c-copy-cand', 5, '', DEMO_INTERNAL))
+      + buttonHtml('c-copy-run', label(ctx, 'copyRun'))
+      + '<div id="c-copy-result"></div>',
+  );
+}
+
 export const campaignsSection: Section = {
   id: 'campaigns',
   titles: { fr: 'Campagnes et hérédité', en: 'Campaigns & inheritance' },
   render(ctx) {
-    return campaignsBlock(ctx);
+    return campaignsBlock(ctx) + copyBlock(ctx);
   },
   mount(root, ctx) {
     root.querySelector<HTMLButtonElement>('#c-run')
       ?.addEventListener('click', () => runCampaigns(root, ctx));
+    root.querySelector<HTMLButtonElement>('#c-copy-run')
+      ?.addEventListener('click', () => runCopies(root, ctx));
     runCampaigns(root, ctx);
+    runCopies(root, ctx);
   },
 };
