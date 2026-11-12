@@ -96,7 +96,7 @@ describe('cartographie du journal', () => {
 });
 
 describe('trace d’un ticket', () => {
-  it('borne le mode appliqué au premier événement qui le prouve', () => {
+  it('borne par le haut l’analyse lexicale et le mode appliqué', () => {
     const events = [
       row('scan', T0 + 900),
       row('label-applied', T0 + 700),
@@ -104,7 +104,7 @@ describe('trace d’un ticket', () => {
     ];
     const trace = traceFromEvents('SUP-482', CREATED, events);
     const marks = Object.fromEntries(trace.marks.map((mark) => [mark.stage, mark.atMs]));
-    expect(marks['mode-applied']).toBe(T0 + 700);
+    expect(marks['mode-applied']).toBe(T0 + 900);
     expect(marks.c2).toBe(T0 + 900);
     expect(marks.c3).toBe(T0 + 4000);
     expect(marks.origin).toBeUndefined();
@@ -196,7 +196,8 @@ describe('mesure du site', () => {
     const deps = { store: storeWith(events), jira: fakeJira(), clock: fixedClock(CREATED) };
     const site = await measureSite(deps, { issueKeys: ['SUP-482'] });
     expect(site.report.sampleSize).toBe(1);
-    expect(site.report.intervals.mode?.value).toBe(1100);
+    expect(site.report.intervals.mode?.value).toBe(1200);
+    expect(site.report.intervals.c2?.value).toBe(1200);
     expect(site.report.intervals.mode?.source).toBe('measured');
     expect(site.report.intervals.c1?.source).toBe('assumed');
   });

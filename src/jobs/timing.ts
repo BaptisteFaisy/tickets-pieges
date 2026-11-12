@@ -41,7 +41,11 @@ export interface TimingDeps {
   clock: Clock;
 }
 
-/** Ce que chaque entrée du journal permet de dater. Un `kind` peut borner plusieurs étapes. */
+/**
+ * Ce que chaque entrée du journal permet de dater. `scan` est écrit après
+ * l'application du mode : il **borne par le haut** la fin des couches lexicales
+ * et le mode appliqué, sans les séparer. Un `kind` peut borner plusieurs étapes.
+ */
 export const EVENT_STAGES: readonly { kind: string; stage: TimingStage }[] = [
   { kind: 'scan', stage: 'c2' },
   { kind: 'scan', stage: 'mode-applied' },
