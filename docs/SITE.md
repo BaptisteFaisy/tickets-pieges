@@ -6,15 +6,26 @@ sans installation, et sans aucun appel réseau : tout calcule dans le navigateur
 ## Ce que c'est
 
 Une page qui présente le produit (les trois verrous, les quatre couches, les dix outils MCP,
-l'exercice d'alerte, ce qui n'est pas promis) et surtout **un détecteur en ligne** : le visiteur
-choisit l'une des 38 demandes du jeu d'essai intégré (§22, en français et en anglais) ou colle
-son propre texte, choisit le canal, le type de compte et le mode du projet, et voit le résultat
-réel — origine T0 à T3 avec ses raisons, constats par couche avec extrait et résumé neutre,
-niveau de suspicion, décision de mode, encart d'étiquetage, et le texte tel qu'un agent le
-recevrait (balises à identifiant aléatoire du §8.2).
+l'exercice d'alerte, ce qui n'est pas promis) et surtout **douze sections interactives** — une
+par feature, un onglet chacune :
+
+| Onglet | Ce qu'on y fait | Modules du domaine appelés |
+|---|---|---|
+| Détecteur | analyser une des 38 demandes du jeu (ou son propre texte) : origine, C1/C2/C4, constats, suspicion, mode, encadrement | `replay/engine`, `core/*` |
+| Ce que le texte cache | décodage prudent puis réanalyse, réducteurs de lien, langue détectée et lexique, homoglyphes, extraction PDF/OOXML, part non analysée | `core/decode`, `langues`, `homoglyphs`, `platform/extract*`, `core/unanalyzed` |
+| Session contaminée | jeton signé HMAC (signer, vérifier, altérer), TTL, budget de gestes, quarantaine, audit, agent en boucle | `core/session*` |
+| Sas de sortie | données d'un autre client, DLP (IBAN, carte, SIRET, NIR, jetons), masquage réversible, débit, notification, pièces sortantes, mode red team | `core/outbound*`, `dlp`, `redaction`, `drafts` |
+| Les dix outils MCP | appeler chaque outil dans la page, JSON brut + lecture humaine, preuve que les GET n'écrivent rien | `mcp/*` |
+| Hook et clients d'agents | config générée pour Claude Code, Cursor, Copilot, Cline, ZeroClaw (copiable), réponses `PostToolUse`/`PreToolUse` réelles, cycle du jeton, limites du §11 | `hook/*` |
+| Campagnes et hérédité | regroupement par empreinte, recopie d'un texte externe par un interne, héritage vers ticket lié ou cloné | `core/campaigns`, `fingerprint`, `inheritance` |
+| Exercice d'alerte | ticket témoin, consigne unique, appât, profondeur d'obéissance, planning, journal à hash chaîné vérifiable | `core/canary*`, `lure` |
+| Exposition | rapport, score 0-100 et ses pondérations, avant/après, obéissance par assistant, exports CSV/JSON locaux | `core/exposure`, `scores`, `exports`, `assistants` |
+| Précision et réglages | précision par règle, calibration bornée, tentative de corrompre le détecteur, drapeaux par projet | `core/precision`, `autotune`, `flags` |
+| Banc de détection | corpus navigable, métriques par règle, fuzzing (5 mutations), mode shadow, scénario Cato 2025 | `bench/*` |
+| Mesures de terrain | fenêtre d'exposition instrumentée étape par étape, budgets du §21 tenus ou non, débit — en distinguant ce qui est mesuré ici de ce qui reste à mesurer sur site | `core/timing`, `replay/engine` |
 
 Bilingue : le bouton **FR / EN** en haut à droite bascule toute la page, y compris les libellés
-du rapport (les catalogues du produit sont les mêmes que dans l'app).
+des rapports (les catalogues du produit sont les mêmes que dans l'app).
 
 ## Le site n'a aucune logique propre
 
@@ -23,11 +34,20 @@ C'est la règle du dépôt (`docs/ARCHITECTURE.md` §1) poussée jusqu'au bout :
 de commande (`node tools/replay.mjs`) et que l'app Forge. Rien n'est recopié, rien n'est
 réimplémenté : une règle ajoutée au domaine apparaît aussitôt sur le site.
 
-Seul écart au navigateur : `src/core/hashing.ts` importe `node:crypto`, absent d'une page.
-`site/shims/node-crypto.ts` fournit les deux gestes utilisés (SHA-256 et octets aléatoires)
-en TypeScript pur, et `src/site/crypto-shim.test.ts` vérifie qu'il produit **les mêmes
-empreintes** que Node — sinon les campagnes (§14) et les identifiants stables de constat (§6)
-dériveraient entre le site et l'app.
+Deux écarts au navigateur, tous les deux comblés par des shims plutôt qu'en modifiant le
+domaine :
+
+- `node:crypto` (`src/core/hashing.ts`, et `src/core/session-token.ts` pour le jeton signé) :
+  `site/shims/node-crypto.ts` fournit SHA-256, **HMAC-SHA256**, comparaison à temps constant et
+  octets aléatoires en TypeScript pur ;
+- `Buffer`, absent d'une page et utilisé par le jeton de session en `base64url` :
+  `site/shims/globals.ts` en fournit un minimal (utf8, hex, base64, base64url), injecté par
+  esbuild (`inject:`).
+
+`src/site/crypto-shim.test.ts` vérifie que ces shims produisent **exactement** les mêmes
+empreintes, MAC, encodages et comparaisons que Node — sinon les campagnes (§14), les
+identifiants stables de constat (§6) et les jetons de session (#23) dériveraient entre le site
+et l'app.
 
 ## Reconstruire et republier
 
@@ -60,5 +80,15 @@ google-chrome --headless=new --disable-gpu --no-sandbox --virtual-time-budget=10
 
 Le premier doit rendre `200` ; le second doit compter au moins un bloc encadré : c'est la
 preuve que le domaine s'exécute bien dans le navigateur et que la première demande d'exemple
-a été analysée au chargement. Mesuré le 11 novembre 2026 : `200`, 4 occurrences, 36 options
-de demandes présentes, aucune erreur JavaScript, aucune requête sortante.
+a été analysée au chargement. Pour chaque onglet, l'ancre `#<id>` doit rendre la section :
+
+```bash
+for id in detector content sessions outbound mcp hook campaigns canary exposure tuning bench timing; do
+  google-chrome --headless=new --disable-gpu --no-sandbox --virtual-time-budget=9000 \
+    --dump-dom "https://baptistefaisy.github.io/tickets-pieges/#$id" | wc -c
+done
+```
+
+Mesuré le 12 novembre 2026 sur le build `1b37c1e` : `200`, **12 onglets**, les 12 sections
+rendues (DOM de 23 à 43 Ko), 4 blocs encadrés sur le détecteur, **0 erreur JavaScript**, aucune
+requête sortante, 1211 tests verts côté dépôt.

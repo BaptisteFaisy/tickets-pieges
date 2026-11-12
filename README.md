@@ -5,10 +5,16 @@
 > whatever an AI is about to send back out goes through a gate.
 
 > **Live demo, no install, no account, nothing leaves your browser:**
-> <https://baptistefaisy.github.io/tickets-pieges/> — the app's own detection code,
-> compiled for the browser: pick one of the 38 built-in sample requests (or paste
-> your own text) and watch origin, layers C1/C2/C4, findings, suspicion level,
-> mode and framing happen. French/English toggle. See [`docs/SITE.md`](docs/SITE.md).
+> <https://baptistefaisy.github.io/tickets-pieges/> — the app's own code, compiled for
+> the browser, in **12 interactive sections**: detector (38 built-in sample requests or
+> your own text), what the text hides (decoding, languages, homoglyphs, PDF/OOXML
+> extraction), tainted session (signed token, TTL, gesture budget, quarantine),
+> outbound gate (DLP, reversible redaction, rate, red team), the ten MCP tools
+> (callable in the page), hook configurations generated for five agent clients,
+> campaigns & inheritance, alert exercise (canary, lure, hash-chained journal),
+> exposure report and 0-100 score, rule precision & tuning, detection bench (corpus,
+> per-rule metrics, fuzzing, shadow mode, Cato 2025 scenario), and field measures.
+> French/English toggle. See [`docs/SITE.md`](docs/SITE.md).
 
 Atlassian Forge app · Codegeist 2026 · category **Apps for Business Teams**
 (customer support, IT). Full specification: [`docs/CAHIER-DES-CHARGES.md`](docs/CAHIER-DES-CHARGES.md)
