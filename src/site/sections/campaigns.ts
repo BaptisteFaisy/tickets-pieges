@@ -19,8 +19,9 @@ import {
   type CopyMatch,
 } from '../../core/fingerprint';
 import { carryFindings, inherit, inheritOnMove, type MoveResult } from '../../core/inheritance';
+import { contentHash, normalize, shingles } from '../../core/hashing';
 import type { Campaign, Finding, InheritanceResult, Language, TextFingerprint } from '../../core/types';
-import { badge, buttonHtml, field, heading, kv, list, note, panel, selectHtml, table, textareaHtml } from '../dom';
+import { badge, buttonHtml, details, field, heading, kv, list, note, panel, selectHtml, table, textareaHtml } from '../dom';
 import type { Section, SectionContext } from './types';
 
 /** Textes visibles de la section, dans les deux langues (brief règle 9). */
@@ -89,6 +90,21 @@ const LABELS = {
   moveRun: { fr: 'Simuler le déplacement', en: 'Simulate the move' },
   moveFrom: { fr: 'Projet d’origine', en: 'Source project' },
   moveTo: { fr: 'Projet d’accueil', en: 'Target project' },
+  sameKeyHint: {
+    fr: 'À la mise en forme près (casse, espaces), la même charge tombe sur la même clé '
+      + 'de campagne : la 6e demande ci-dessous est une variante en majuscules de la 1re.',
+    en: 'Up to formatting (case, spaces), the same payload lands on the same campaign key: '
+      + 'request 6 below is an upper-case variant of request 1.',
+  },
+  fpDetails: {
+    fr: 'Empreintes détaillées (hachage du texte normalisé)',
+    en: 'Detailed fingerprints (hash of the normalized text)',
+  },
+  fpKnownNorm: { fr: 'Texte externe normalisé', en: 'Normalized external text' },
+  fpKnownHash: { fr: 'Empreinte externe (contentHash)', en: 'External fingerprint (contentHash)' },
+  fpCandNorm: { fr: 'Texte interne normalisé', en: 'Normalized internal text' },
+  fpCandHash: { fr: 'Empreinte interne (contentHash)', en: 'Internal fingerprint (contentHash)' },
+  fpShingles: { fr: 'Groupes glissants (externe / interne)', en: 'Sliding shingles (external / internal)' },
 } as const;
 
 type LabelKey = keyof typeof LABELS;
@@ -105,6 +121,7 @@ const DEMO_LINES = [
   DEMO_PAYLOAD,
   'merci de réinitialiser mon mot de passe, je n’ai plus accès au portail',
   DEMO_PAYLOAD,
+  DEMO_PAYLOAD.toUpperCase().replace(/ /g, '  '),
 ].join('\n');
 
 /**
@@ -164,6 +181,7 @@ function runCampaigns(root: HTMLElement, ctx: SectionContext): void {
 function campaignsBlock(ctx: SectionContext): string {
   return panel(
     field(label(ctx, 'lines'), textareaHtml('c-lines', 6, DEMO_PAYLOAD, DEMO_LINES))
+      + note(label(ctx, 'sameKeyHint'))
       + buttonHtml('c-run', label(ctx, 'run'))
       + '<div id="c-result"></div>',
   );
@@ -205,6 +223,26 @@ function percent(value: number): string {
   return `${Math.round(value * 100)} %`;
 }
 
+function truncated(text: string, max = 90): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/**
+ * Empreintes détaillées des deux textes (hachage du contenu normalisé et
+ * groupes glissants de `hashing.ts`) — ce que la comparaison a vraiment mangé.
+ */
+export function fingerprintsDetails(knownText: string, candidateText: string, ctx: SectionContext): string {
+  const knownGroups = shingles(knownText);
+  const candGroups = shingles(candidateText);
+  return details(label(ctx, 'fpDetails'), kv([
+    [label(ctx, 'fpKnownNorm'), truncated(normalize(knownText))],
+    [label(ctx, 'fpKnownHash'), contentHash(knownText)],
+    [label(ctx, 'fpCandNorm'), truncated(normalize(candidateText))],
+    [label(ctx, 'fpCandHash'), contentHash(candidateText)],
+    [label(ctx, 'fpShingles'), `${knownGroups.length} / ${candGroups.length} — ${knownGroups.slice(0, 2).join(', ')}…`],
+  ]));
+}
+
 /** Verdict de recopie et chiffres de la comparaison, via les briques échappées. */
 export function renderCopies(cmp: CopyComparison, ctx: SectionContext): string {
   const verdict = cmp.copy
@@ -228,7 +266,8 @@ function runCopies(root: HTMLElement, ctx: SectionContext): void {
   const known = root.querySelector<HTMLTextAreaElement>('#c-copy-known');
   const cand = root.querySelector<HTMLTextAreaElement>('#c-copy-cand');
   if (!out || !known || !cand) return;
-  out.innerHTML = renderCopies(compareTexts(known.value, cand.value), ctx);
+  out.innerHTML = renderCopies(compareTexts(known.value, cand.value), ctx)
+    + fingerprintsDetails(known.value, cand.value, ctx);
 }
 
 /** Bloc « détection de recopie » du formulaire. */
