@@ -72,12 +72,25 @@ function compress(state: Uint32Array, block: Uint8Array, offset: number): void {
   for (let i = 0; i < 8; i += 1) state[i] = (state[i]! + next[i]!) >>> 0;
 }
 
-/** Empreinte SHA-256 d'un tableau d'octets, en hexadécimal. */
-export function sha256Hex(data: Uint8Array): string {
+/** Empreinte SHA-256 d'un tableau d'octets. */
+export function sha256Bytes(data: Uint8Array): Uint8Array {
   const padded = pad(data);
   const state = Uint32Array.from(H0);
   for (let offset = 0; offset < padded.length; offset += 64) compress(state, padded, offset);
-  return [...state].map((word) => word.toString(16).padStart(8, '0')).join('');
+  const out = new Uint8Array(32);
+  const view = new DataView(out.buffer);
+  for (let i = 0; i < 8; i += 1) view.setUint32(i * 4, state[i]!);
+  return out;
+}
+
+/** Empreinte SHA-256 d'un tableau d'octets, en hexadécimal. */
+export function sha256Hex(data: Uint8Array): string {
+  return toHex(sha256Bytes(data));
+}
+
+/** Hexadécimal d'un tableau d'octets. */
+export function toHex(data: Uint8Array): string {
+  return [...data].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 /** Chaînes en octets UTF-8 (comme `update(text, 'utf8')` de Node). */
@@ -101,6 +114,68 @@ export function randomBytes(length: number): RandomBytes {
       ? [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
       : new TextDecoder().decode(bytes);
   return wrapper;
+}
+
+
+/** Clé HMAC ramenée à 64 octets (FIPS 198-1). */
+function hmacKey(key: Uint8Array): Uint8Array {
+  if (key.length > 64) return sha256Bytes(key);
+  if (key.length === 64) return key;
+  const padded = new Uint8Array(64);
+  padded.set(key);
+  return padded;
+}
+
+/** HMAC-SHA256 en octets. */
+export function hmacSha256Bytes(key: Uint8Array, message: Uint8Array): Uint8Array {
+  const block = hmacKey(key);
+  const inner = new Uint8Array(64);
+  const outer = new Uint8Array(64);
+  for (let i = 0; i < 64; i += 1) {
+    inner[i] = (block[i] ?? 0) ^ 0x36;
+    outer[i] = (block[i] ?? 0) ^ 0x5c;
+  }
+  const first = new Uint8Array(64 + message.length);
+  first.set(inner);
+  first.set(message, 64);
+  const digest = sha256Bytes(first);
+  const second = new Uint8Array(64 + digest.length);
+  second.set(outer);
+  second.set(digest, 64);
+  return sha256Bytes(second);
+}
+
+/**
+ * Comparaison à temps constant : la durée ne dépend pas de la position de la
+ * première différence. Comme `node:crypto`, elle refuse deux longueurs distintas.
+ */
+export function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) {
+    throw new RangeError('Input buffers must have the same length');
+  }
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
+  return diff === 0;
+}
+
+/** Compatible avec `createHmac('sha256', key).update(data, 'utf8').digest('hex')`. */
+export function createHmac(algorithm: string, key: string | Uint8Array): {
+  update(data: string | Uint8Array, encoding?: string): { digest(format: string): string };
+} {
+  if (algorithm !== 'sha256') throw new Error(`algorithme non pris en charge : ${algorithm}`);
+  const keyBytes = typeof key === 'string' ? utf8(key) : key;
+  return {
+    update(data: string | Uint8Array) {
+      const bytes = typeof data === 'string' ? utf8(data) : data;
+      const mac = hmacSha256Bytes(keyBytes, bytes);
+      return {
+        digest(format: string) {
+          if (format !== 'hex') throw new Error(`format non pris en charge : ${format}`);
+          return toHex(mac);
+        },
+      };
+    },
+  };
 }
 
 /** Compatible avec l'appel du domaine : `createHash('sha256').update(t,'utf8').digest('hex')`. */

@@ -84,6 +84,9 @@ async function main() {
     sourcemap: false,
     legalComments: 'none',
     define: { __BUILD__: JSON.stringify(buildStamp()) },
+    // `Buffer` n'existe pas dans une page : le domaine (jeton de session signé)
+    // en a besoin, on l'injecte plutôt que de modifier le code produit.
+    inject: [resolve(ROOT, 'site/shims/globals.ts')],
     plugins: [cryptoShim, skipTests],
     logLevel: 'warning',
   });
