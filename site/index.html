@@ -15,7 +15,7 @@
     <strong>Trapped Tickets</strong>
     <span class="tag" data-en="Atlassian Forge · Codegeist 2026" data-fr="Atlassian Forge · Codegeist 2026"></span>
     <nav>
-      <a href="#demo" data-en="Live demo" data-fr="Démo en ligne"></a>
+      <a href="#features" data-en="Features" data-fr="Features"></a>
       <a href="#locks" data-en="Three locks" data-fr="Trois verrous"></a>
       <a href="#layers" data-en="Detection" data-fr="Détection"></a>
       <a href="#tools" data-en="MCP tools" data-fr="Outils MCP"></a>
@@ -36,7 +36,7 @@
        data-en="June 2025: Cato Networks demonstrated the attack against Jira Service Management through Atlassian's MCP server. June 2025: Atlassian published a customer advisory listing four mitigations, declared non-exhaustive. August 2026: two injection paths into Rovo were published, one still open at publication time."
        data-fr="Juin 2025 : Cato Networks démontre l'attaque contre Jira Service Management via le serveur MCP d'Atlassian. Juin 2025 : Atlassian publie une note aux clients recommandant quatre mesures, déclarées non exhaustives. Août 2026 : deux chemins d'injection dans Rovo sont publiés, dont un encore ouvert à la publication."></p>
     <p class="cta-row">
-      <a class="cta" href="#demo" data-en="Try the detector — no account, no install" data-fr="Essayer le détecteur — sans compte, sans installation"></a>
+      <a class="cta" href="#features" data-en="Try every feature — no account, no install" data-fr="Essayer chaque feature — sans compte, sans installation"></a>
       <a class="cta ghost" href="https://github.com/BaptisteFaisy/tickets-pieges" data-en="Read the source (572 tests)" data-fr="Lire le code (572 tests)"></a>
     </p>
   </section>
@@ -64,61 +64,13 @@
     </div>
   </section>
 
-  <section id="demo" class="demo">
-    <h2 data-en="Live detector" data-fr="Détecteur en ligne"></h2>
-    <p class="sub" data-en="The real detection code of the app, running in your browser — origin, layers C1, C2 and C4, findings, suspicion level, mode and framing. No network call, no account, nothing leaves this page. Layer C3 (hosted model) is not called here and is reported as not played."
-       data-fr="Le vrai code de détection de l'app, exécuté dans votre navigateur — origine, couches C1, C2 et C4, constats, niveau de suspicion, mode et encadrement. Aucun appel réseau, aucun compte, rien ne quitte cette page. La couche C3 (modèle hébergé) n'est pas appelée ici et est signalée comme non jouée."></p>
-
-    <div class="demo-grid">
-      <form id="form" class="panel">
-        <label class="field">
-          <span data-en="Sample request (38 built-in cases)" data-fr="Demande d'exemple (38 cas intégrés)"></span>
-          <select id="sample"></select>
-        </label>
-        <label class="field">
-          <span data-en="Or paste your own text" data-fr="Ou collez votre propre texte"></span>
-          <textarea id="custom" rows="7" placeholder="Bonjour, mon export échoue…"></textarea>
-        </label>
-        <div class="row">
-          <label class="field">
-            <span data-en="Channel" data-fr="Canal"></span>
-            <select id="channel">
-              <option value="portal">portal</option>
-              <option value="anonymousportal">anonymousportal</option>
-              <option value="email">email</option>
-              <option value="API">API</option>
-              <option value="jira">jira</option>
-              <option value="deployment">deployment</option>
-            </select>
-          </label>
-          <label class="field">
-            <span data-en="Author account" data-fr="Compte de l'auteur"></span>
-            <select id="account">
-              <option value="customer">customer</option>
-              <option value="atlassian">atlassian (internal)</option>
-              <option value="app">app (integration)</option>
-              <option value="unknown">unknown</option>
-            </select>
-          </label>
-          <label class="field">
-            <span data-en="Project mode" data-fr="Mode du projet"></span>
-            <select id="mode">
-              <option value="report">report</option>
-              <option value="label">label</option>
-              <option value="neutralize">neutralize</option>
-            </select>
-          </label>
-        </div>
-        <button type="submit" class="cta" data-en="Analyse" data-fr="Analyser"></button>
-        <p class="hint" data-en="Everything runs locally: the detector is the app's own code, compiled for the browser."
-           data-fr="Tout s'exécute en local : le détecteur est le code même de l'app, compilé pour le navigateur."></p>
-      </form>
-
-      <div id="result" class="panel result" aria-live="polite">
-        <p class="empty" data-en="Pick a sample request or paste a text, then press Analyse."
-           data-fr="Choisissez une demande d'exemple ou collez un texte, puis lancez l'analyse."></p>
-      </div>
-    </div>
+  <section id="features" class="features">
+    <h2 data-en="Every feature, in the browser" data-fr="Chaque feature, dans le navigateur"></h2>
+    <p class="sub"
+       data-en="The app's own code — detection, outbound gate, alert exercise, exposure report, session policy, campaigns, rule precision, agent-client configurations, detection bench, file extraction — running locally, with no install and no network call."
+       data-fr="Le code même de l'app — détection, sas de sortie, exercice d'alerte, rapport d'exposition, politique de session, campagnes, précision des règles, configurations pour les clients d'agents, banc de détection, extraction de fichiers — exécuté en local, sans installation et sans appel réseau."></p>
+    <nav id="features-nav" class="tabs" aria-label="features"></nav>
+    <div id="feature"></div>
   </section>
 
   <section id="layers">
@@ -183,8 +135,9 @@
     <a href="https://github.com/BaptisteFaisy/tickets-pieges">github.com/BaptisteFaisy/tickets-pieges</a>
   </p>
   <p class="build" id="build"></p>
+  <div id="toast" class="toast" role="status"></div>
 </footer>
 
-<script src="./assets/demo.js" type="module"></script>
+<script src="./assets/site.js" type="module"></script>
 </body>
 </html>
