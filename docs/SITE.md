@@ -1,6 +1,6 @@
 # Le site de démonstration public
 
-**URL : <https://baptistefaisy.github.io/tickets-pieges/>** — accessible à tous, sans compte,
+**URL : <https://tradoooo.github.io/tickets-pieges/>** — accessible à tous, sans compte,
 sans installation, et sans aucun appel réseau : tout calcule dans le navigateur du visiteur.
 
 ## Ce que c'est
@@ -73,9 +73,9 @@ quelques secondes. `dist/` est ignoré par git : seule la branche `gh-pages` por
 ## Vérifier que la page publique fonctionne
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code}\n' https://baptistefaisy.github.io/tickets-pieges/
+curl -sS -o /dev/null -w '%{http_code}\n' https://tradoooo.github.io/tickets-pieges/
 google-chrome --headless=new --disable-gpu --no-sandbox --virtual-time-budget=10000 \
-  --dump-dom https://baptistefaisy.github.io/tickets-pieges/ | grep -c 'donnee-'
+  --dump-dom https://tradoooo.github.io/tickets-pieges/ | grep -c 'donnee-'
 ```
 
 Le premier doit rendre `200` ; le second doit compter au moins un bloc encadré : c'est la
@@ -85,7 +85,7 @@ a été analysée au chargement. Pour chaque onglet, l'ancre `#<id>` doit rendre
 ```bash
 for id in detector content sessions outbound mcp hook campaigns canary exposure tuning bench timing; do
   google-chrome --headless=new --disable-gpu --no-sandbox --virtual-time-budget=9000 \
-    --dump-dom "https://baptistefaisy.github.io/tickets-pieges/#$id" | wc -c
+    --dump-dom "https://tradoooo.github.io/tickets-pieges/#$id" | wc -c
 done
 ```
 
