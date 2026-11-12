@@ -30,6 +30,7 @@ export const SELF_WRITE_LOOKBACK = 20;
  * Un `scan` (lecture seule) n'en fait **pas** partie : il ne modifie rien.
  */
 export const SELF_WRITE_KINDS: readonly string[] = [
+  'property-written',
   'label-applied',
   'neutralize',
   'restore',

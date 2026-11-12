@@ -42,11 +42,31 @@ describe('garde anti-écho (Confluence n’a pas de filtre ignoreSelf)', () => {
     expect(isSelfEcho(marks(['neutralize', at]), NOW, 60_000)).toBe(true);
   });
 
-  it('les gestes d’écriture couverts sont ceux qui modifient le contenu', () => {
-    for (const kind of ['label-applied', 'neutralize', 'restore', 'confluence-write', 'replace-segment']) {
+  it('les gestes d’écriture couverts sont ceux qui modifient le ticket', () => {
+    for (const kind of [
+      'property-written',
+      'label-applied',
+      'neutralize',
+      'restore',
+      'confluence-write',
+      'replace-segment',
+    ]) {
       expect(SELF_WRITE_KINDS).toContain(kind);
     }
     expect(SELF_WRITE_KINDS).not.toContain('scan');
+  });
+
+  it('l’écriture de la propriété indexée est un écho (elle déclenche un événement)', () => {
+    // Mesuré le 12 novembre 2026 : écrire `pieges` déclenche
+    // `avi:jira:updated:issue` ; sans cette trace, l'app réanalyse son propre
+    // écrit et la couche C3 devient intermittente.
+    const marks = [{ kind: 'property-written', at: '2026-11-12T12:00:02.000Z' }];
+    expect(isSelfEcho(marks, '2026-11-12T12:00:05.000Z')).toBe(true);
+    // Au-delà de la fenêtre par défaut (120 s), l'événement n'est plus un écho.
+    expect(isSelfEcho(marks, '2026-11-12T12:02:30.000Z')).toBe(false);
+    // Le déclencheur, lui, utilise une fenêtre courte (20 s).
+    expect(isSelfEcho(marks, '2026-11-12T12:00:05.000Z', 20_000)).toBe(true);
+    expect(isSelfEcho(marks, '2026-11-12T12:00:40.000Z', 20_000)).toBe(false);
   });
 
   it('l’âge de la dernière écriture se lit pour décider', () => {

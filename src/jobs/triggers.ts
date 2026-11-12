@@ -12,6 +12,7 @@
  */
 
 import { inherit } from '../core/inheritance';
+import { isSelfEcho } from '../core/self-write';
 import { eventIssueKey, eventLinkedIssueKey, eventLinkType, eventSourceIssueKey } from './events';
 import { scanIssue } from './pipeline';
 import { createForgeDeps } from './support';
@@ -21,12 +22,41 @@ function keyOf(event: unknown): string | null {
   return eventIssueKey(event);
 }
 
+
+/**
+ * Fenêtre pendant laquelle un événement est considéré comme l'écho de nos
+ * propres écritures (propriété indexée, bandeau, neutralisation).
+ *
+ * Écrire la propriété `pieges` **déclenche** `avi:jira:updated:issue`. Sans
+ * garde, l'app réanalyse son propre écrit, réécrit la propriété, et
+ * recommence : la couche C3 devient intermittente et le quota Forge SQL part en
+ * écritures inutiles. Mesuré le 12 novembre 2026.
+ */
+const SELF_ECHO_WINDOW_MS = 20_000;
+
+/** Analyse le ticket, sauf si l'événement est l'écho de notre propre écriture. */
+async function analyseUnlessEcho(
+  deps: Awaited<ReturnType<typeof createForgeDeps>>,
+  issueKey: string,
+): Promise<void> {
+  const issue = await deps.jira.getIssue(issueKey);
+  const marks = (await deps.store.events.list(issue.id, 20)).map((entry) => ({
+    kind: entry.kind,
+    at: entry.at,
+  }));
+  if (isSelfEcho(marks, deps.clock.now(), SELF_ECHO_WINDOW_MS)) {
+    await deps.store.events.append('self-echo-ignored', issue.id, { issueKey });
+    return;
+  }
+  await scanIssue(deps, issueKey);
+}
+
 /** `avi:jira:created:issue` — origine immédiate, puis C1/C2, puis file C3 (§18). */
 export async function issueCreated(event: unknown): Promise<void> {
   const issueKey = keyOf(event);
   if (!issueKey) return;
   const deps = await createForgeDeps();
-  await scanIssue(deps, issueKey);
+  await analyseUnlessEcho(deps, issueKey);
 }
 
 /**
@@ -38,7 +68,7 @@ export async function issueUpdated(event: unknown): Promise<void> {
   const issueKey = keyOf(event);
   if (!issueKey) return;
   const deps = await createForgeDeps();
-  await scanIssue(deps, issueKey);
+  await analyseUnlessEcho(deps, issueKey);
 }
 
 /** `avi:jira:created:comment` — un commentaire peut porter la moitié d'une charge. */
@@ -46,7 +76,7 @@ export async function commentCreated(event: unknown): Promise<void> {
   const issueKey = keyOf(event);
   if (!issueKey) return;
   const deps = await createForgeDeps();
-  await scanIssue(deps, issueKey);
+  await analyseUnlessEcho(deps, issueKey);
 }
 
 /** `avi:jira:updated:comment` — visibilité modifiée ou texte édité. */
@@ -54,7 +84,7 @@ export async function commentUpdated(event: unknown): Promise<void> {
   const issueKey = keyOf(event);
   if (!issueKey) return;
   const deps = await createForgeDeps();
-  await scanIssue(deps, issueKey);
+  await analyseUnlessEcho(deps, issueKey);
 }
 
 /**

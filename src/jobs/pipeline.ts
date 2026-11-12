@@ -350,6 +350,16 @@ export async function writeProperty(deps: PipelineDeps, state: IssueState, langu
     analyzedAt: state.updatedAt,
     unanalyzed: state.unanalyzed.length,
   });
+  // L'écriture de la propriété **déclenche** `avi:jira:updated:issue` : sans cette
+  // trace, l'app réanalyse son propre écrit et se relance en boucle (mesuré le
+  // 12 novembre 2026 : la couche C3 devenait intermittente, et le quota Forge
+  // SQL partait en écritures inutiles). La trace sert de garde anti-écho
+  // (`src/core/self-write.ts`).
+  await deps.store.events.append('property-written', state.issueId, {
+    issueKey: state.issueKey,
+    trustLevel: state.trustLevel,
+    suspicionLevel: state.suspicionLevel,
+  });
 }
 
 /**
