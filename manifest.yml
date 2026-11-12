@@ -79,6 +79,11 @@ modules:
     - key: getExposureReport
       handler: index.getExposureReport
 
+    # Confluence (#61, TP-26) : un seul handler pour les quatre déclencheurs
+    # de pages et de commentaires — le pipeline des cinq étapes est le même.
+    - key: confluence-scan
+      handler: index.confluenceContentEvent
+
   # ------------------------------------------------------------------ événements
   # Les noms d'événements sont ceux de la plateforme (AVI). L'ajout d'une pièce
   # jointe n'a pas d'événement dédié vérifié à ce jour (§20) : les pièces sont
@@ -104,6 +109,34 @@ modules:
       events:
         - avi:jira:created:issuelink
       function: issue-link-created
+
+    # Pages et commentaires Confluence, y compris rédigés par des invités
+    # (#61, TP-26). `ignoreSelf` : ne pas réanalyser nos propres réécritures
+    # (bandeau, neutralisation).
+    - key: pieges-conf-page-created
+      events:
+        - avi:confluence:created:page
+      function: confluence-scan
+      filter:
+        ignoreSelf: true
+    - key: pieges-conf-page-updated
+      events:
+        - avi:confluence:updated:page
+      function: confluence-scan
+      filter:
+        ignoreSelf: true
+    - key: pieges-conf-comment-created
+      events:
+        - avi:confluence:created:comment
+      function: confluence-scan
+      filter:
+        ignoreSelf: true
+    - key: pieges-conf-comment-updated
+      events:
+        - avi:confluence:updated:comment
+      function: confluence-scan
+      filter:
+        ignoreSelf: true
 
   # File d'analyse (couche C3, hors du chemin de l'événement).
   consumer:
@@ -469,3 +502,10 @@ permissions:
     - read:organization:jira-service-management
     - read:servicedesk:jira-service-management
     - storage:app
+    # Confluence (#61) : lire pages, commentaires et pièces ; réécrire un corps
+    # neutralisé (§8.3) ; commenter via le sas ; propriétés et libellés de page.
+    - read:content:confluence
+    - write:content:confluence
+    - write:comment:confluence
+    - read:space:confluence
+    - read:user:confluence

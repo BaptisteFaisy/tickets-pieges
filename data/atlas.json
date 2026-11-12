@@ -1,0 +1,928 @@
+{
+  "version": 1,
+  "atlas": {
+    "name": "MITRE ATLAS",
+    "url": "https://atlas.mitre.org",
+    "snapshot": "2026-11-12",
+    "techniquesKnown": 170,
+    "note": "Catalogue repris de la source officielle MITRE (atlas-navigator-data/dist/stix-atlas.json). Les identifiants AML.Txxxx existent hors de ce produit ; seule la colonne « coverage » décrit ce que Tickets piégés fait réellement."
+  },
+  "coverageLevels": [
+    {
+      "id": "detected",
+      "labelFr": "Détecté",
+      "labelEn": "Detected",
+      "descFr": "Un constat est élevé et remonté à la revue humaine ; rien n’est bloqué automatiquement.",
+      "descEn": "A finding is raised and routed to human review; nothing is blocked automatically."
+    },
+    {
+      "id": "framed",
+      "labelFr": "Encadré",
+      "labelEn": "Framed",
+      "descFr": "Le passage est neutralisé puis ne parvient au modèle que comme donnée entre balises à identifiant aléatoire.",
+      "descEn": "The passage is neutralised then reaches the model only as data between random-id tags."
+    },
+    {
+      "id": "blocked",
+      "labelFr": "Bloqué",
+      "labelEn": "Blocked",
+      "descFr": "La sortie est retenue par le sas (§10) : rien ne quitte l’organisation.",
+      "descEn": "The output is held by the sas (§10): nothing leaves the organisation."
+    },
+    {
+      "id": "not-covered",
+      "labelFr": "Non couvert",
+      "labelEn": "Not covered",
+      "descFr": "La technique n’est pas analysée par le produit ; rien n’est affirmé sur elle.",
+      "descEn": "The technique is not analysed by the product; nothing is claimed about it."
+    }
+  ],
+  "families": [
+    {
+      "id": "prompt-injection",
+      "labelFr": "Injection de consignes",
+      "labelEn": "Prompt injection"
+    },
+    {
+      "id": "dissimulation",
+      "labelFr": "Dissimulation et masquage",
+      "labelEn": "Concealment and masquerading"
+    },
+    {
+      "id": "exfiltration",
+      "labelFr": "Exfiltration et fuite de données",
+      "labelEn": "Exfiltration and data leakage"
+    },
+    {
+      "id": "outils-agent",
+      "labelFr": "Invocation d’outils par l’agent",
+      "labelEn": "Agent tool invocation"
+    },
+    {
+      "id": "preparation-attaque",
+      "labelFr": "Préparation de l’attaque (comptes, identité)",
+      "labelEn": "Attack preparation (accounts, identity)"
+    },
+    {
+      "id": "deni-de-service-agent",
+      "labelFr": "Déni de service d’agent",
+      "labelEn": "Agent denial of service"
+    },
+    {
+      "id": "corruption-de-memoire",
+      "labelFr": "Corruption de mémoire et de contexte",
+      "labelEn": "Memory and context corruption"
+    }
+  ],
+  "techniques": [
+    {
+      "id": "AML.T0011.000",
+      "name": "Unsafe AI Artifacts",
+      "nameFr": "Artefacts non sûrs",
+      "family": "dissimulation"
+    },
+    {
+      "id": "AML.T0011.003",
+      "name": "Malicious Link",
+      "nameFr": "Lien malveillant",
+      "family": "dissimulation"
+    },
+    {
+      "id": "AML.T0021",
+      "name": "Establish Accounts",
+      "nameFr": "Création de comptes",
+      "family": "preparation-attaque"
+    },
+    {
+      "id": "AML.T0025",
+      "name": "Exfiltration via Cyber Means",
+      "nameFr": "Exfiltration par voie numérique",
+      "family": "exfiltration"
+    },
+    {
+      "id": "AML.T0029",
+      "name": "Denial of AI Service",
+      "nameFr": "Déni de service de l’IA",
+      "family": "deni-de-service-agent"
+    },
+    {
+      "id": "AML.T0034.002",
+      "name": "Agentic Resource Consumption",
+      "nameFr": "Consommation de ressources par l’agent",
+      "family": "deni-de-service-agent"
+    },
+    {
+      "id": "AML.T0046",
+      "name": "Spamming AI System with Chaff Data",
+      "nameFr": "Envoi de données de remplissage",
+      "family": "dissimulation"
+    },
+    {
+      "id": "AML.T0051",
+      "name": "LLM Prompt Injection",
+      "nameFr": "Injection de consigne dans un modèle de langage",
+      "family": "prompt-injection"
+    },
+    {
+      "id": "AML.T0051.001",
+      "name": "Indirect",
+      "nameFr": "Injection indirecte",
+      "family": "prompt-injection"
+    },
+    {
+      "id": "AML.T0053",
+      "name": "AI Agent Tool Invocation",
+      "nameFr": "Invocation d’un outil par l’agent",
+      "family": "outils-agent"
+    },
+    {
+      "id": "AML.T0054",
+      "name": "LLM Jailbreak",
+      "nameFr": "Contournement d’instruction (jailbreak)",
+      "family": "prompt-injection"
+    },
+    {
+      "id": "AML.T0055",
+      "name": "Unsecured Credentials",
+      "nameFr": "Identifiants exposés",
+      "family": "exfiltration"
+    },
+    {
+      "id": "AML.T0057",
+      "name": "LLM Data Leakage",
+      "nameFr": "Fuite de données par le modèle",
+      "family": "exfiltration"
+    },
+    {
+      "id": "AML.T0058",
+      "name": "Publish Poisoned Models",
+      "nameFr": "Publication de modèles empoisonnés",
+      "family": "corruption-de-memoire"
+    },
+    {
+      "id": "AML.T0065",
+      "name": "LLM Prompt Crafting",
+      "nameFr": "Façonnage de consigne",
+      "family": "prompt-injection"
+    },
+    {
+      "id": "AML.T0068",
+      "name": "LLM Prompt Obfuscation",
+      "nameFr": "Obscurcissement de consigne",
+      "family": "dissimulation"
+    },
+    {
+      "id": "AML.T0070",
+      "name": "RAG Poisoning",
+      "nameFr": "Empoisonnement d’un corpus RAG",
+      "family": "corruption-de-memoire"
+    },
+    {
+      "id": "AML.T0073",
+      "name": "Impersonation",
+      "nameFr": "Usurpation d’identité",
+      "family": "preparation-attaque"
+    },
+    {
+      "id": "AML.T0074",
+      "name": "Masquerading",
+      "nameFr": "Masquage (apparence trompeuse)",
+      "family": "dissimulation"
+    },
+    {
+      "id": "AML.T0080",
+      "name": "AI Agent Context Poisoning",
+      "nameFr": "Empoisonnement du contexte d’un agent",
+      "family": "corruption-de-memoire"
+    },
+    {
+      "id": "AML.T0086",
+      "name": "Exfiltration via AI Agent Tool Invocation",
+      "nameFr": "Exfiltration par un outil de l’agent",
+      "family": "exfiltration"
+    },
+    {
+      "id": "AML.T0092",
+      "name": "Manipulate User LLM Chat History",
+      "nameFr": "Manipulation de l’historique de conversation",
+      "family": "corruption-de-memoire"
+    },
+    {
+      "id": "AML.T0094",
+      "name": "Delay Execution of LLM Instructions",
+      "nameFr": "Report de l’exécution d’une consigne",
+      "family": "prompt-injection"
+    },
+    {
+      "id": "AML.T0098",
+      "name": "AI Agent Tool Credential Harvesting",
+      "nameFr": "Vol d’identifiants par un outil de l’agent",
+      "family": "exfiltration"
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "C1-01",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Caractères de largeur nulle : la consigne est cachée au lecteur humain.",
+      "noteEn": "Zero-width characters: the instruction is hidden from the human reader."
+    },
+    {
+      "ruleId": "C1-02",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Caractères de balise Unicode, invisibles dans la plupart des éditeurs.",
+      "noteEn": "Unicode tag characters, invisible in most editors."
+    },
+    {
+      "ruleId": "C1-03",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Espaces insécables en série : découpage de mots pour franchir un filtre lexical.",
+      "noteEn": "Excess non-breaking spaces: word splitting to slip past a lexical filter."
+    },
+    {
+      "ruleId": "C1-04",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Séries de liantes : recomposition du mot au rendu, une lettre à la fois.",
+      "noteEn": "Joiner runs: the word is reassembled at rendering time, one letter at a time."
+    },
+    {
+      "ruleId": "C1-05",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068",
+        "AML.T0074"
+      ],
+      "coverage": "framed",
+      "noteFr": "Marque bidi : l’ordre visuel ne correspond plus à l’ordre lu par la machine.",
+      "noteEn": "Bidi override: visual order no longer matches the order read by the machine."
+    },
+    {
+      "ruleId": "C1-06",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Texte de la couleur du fond : présent pour l’IA, absent pour l’œil.",
+      "noteEn": "Text coloured like its background: present for the AI, absent for the eye."
+    },
+    {
+      "ruleId": "C1-07",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Traits d’union conditionnels en série : le mot est découpé sans laisser de trace visible.",
+      "noteEn": "Conditional hyphens in series: the word is split without leaving a visible trace."
+    },
+    {
+      "ruleId": "C1-08",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Texte blanc sur blanc repéré par la couleur seule.",
+      "noteEn": "White-on-white text caught by colour alone."
+    },
+    {
+      "ruleId": "C1-09",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0051.001",
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Consigne portée par le texte alternatif d’une image : elle n’atteint l’IA que par le canal indirect.",
+      "noteEn": "Instruction carried in image alternative text: it reaches the AI only through the indirect channel."
+    },
+    {
+      "ruleId": "C1-10",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0074",
+        "AML.T0011.003"
+      ],
+      "coverage": "framed",
+      "noteFr": "Le libellé du lien annonce une autre adresse que la cible réelle.",
+      "noteEn": "The link label announces a different address than the real target."
+    },
+    {
+      "ruleId": "C1-11",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0011.003"
+      ],
+      "coverage": "framed",
+      "noteFr": "Schéma de lien non navigable (javascript:, data:) : le clic exécute.",
+      "noteEn": "Non-navigable link scheme (javascript:, data:): the click executes."
+    },
+    {
+      "ruleId": "C1-12",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0011.003",
+        "AML.T0025"
+      ],
+      "coverage": "framed",
+      "noteFr": "Hôte inconnu : destination possible de collecte, jamais consultée par le produit.",
+      "noteEn": "Unknown host: a possible collection destination, never fetched by the product."
+    },
+    {
+      "ruleId": "C1-13",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Long bloc encodé : le contenu lisible n’apparaît qu’après décodage.",
+      "noteEn": "Long encoded block: the readable content only appears after decoding."
+    },
+    {
+      "ruleId": "DC-01",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Bloc base64 décodé puis réanalysé comme du texte ordinaire.",
+      "noteEn": "Base64 block decoded then re-analysed as ordinary text."
+    },
+    {
+      "ruleId": "DC-02",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Bloc hexadécimal décodé puis réanalysé.",
+      "noteEn": "Hexadecimal block decoded then re-analysed."
+    },
+    {
+      "ruleId": "DC-03",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Encodage d’URL décodé puis réanalysé.",
+      "noteEn": "URL encoding decoded then re-analysed."
+    },
+    {
+      "ruleId": "DC-04",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Échappement Unicode décodé puis réanalysé.",
+      "noteEn": "Unicode escape decoded then re-analysed."
+    },
+    {
+      "ruleId": "DC-05",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "framed",
+      "noteFr": "Encodage imbriqué : le décodage est répété tant qu’il produit du sens.",
+      "noteEn": "Nested encoding: decoding repeats while it keeps producing meaning."
+    },
+    {
+      "ruleId": "DC-06",
+      "layer": "C1",
+      "techniques": [
+        "AML.T0074",
+        "AML.T0011.003"
+      ],
+      "coverage": "framed",
+      "noteFr": "Raccourcisseur d’URL : la cible réelle est masquée, l’adresse n’est jamais suivie.",
+      "noteEn": "URL shortener: the real target is hidden, the address is never followed."
+    },
+    {
+      "ruleId": "C2-01",
+      "layer": "C2",
+      "techniques": [
+        "AML.T0051.001"
+      ],
+      "coverage": "framed",
+      "noteFr": "Consigne impérative adressée à l’assistant dans un ticket : canal d’injection indirect.",
+      "noteEn": "Imperative instruction addressed to the assistant inside a ticket: an indirect injection channel."
+    },
+    {
+      "ruleId": "C2-02",
+      "layer": "C2",
+      "techniques": [
+        "AML.T0054",
+        "AML.T0051.001"
+      ],
+      "coverage": "framed",
+      "noteFr": "Changement de rôle ou de mode demandé : tentative de jailbreak.",
+      "noteEn": "Requested role or mode change: a jailbreak attempt."
+    },
+    {
+      "ruleId": "C2-03",
+      "layer": "C2",
+      "techniques": [
+        "AML.T0051.001",
+        "AML.T0074"
+      ],
+      "coverage": "framed",
+      "noteFr": "Faux marqueur de système : le texte se fait passer pour une consigne de la plateforme.",
+      "noteEn": "Fake system marker: the text poses as a platform instruction."
+    },
+    {
+      "ruleId": "C2-04",
+      "layer": "C2",
+      "techniques": [
+        "AML.T0053",
+        "AML.T0086"
+      ],
+      "coverage": "framed",
+      "noteFr": "Verbe d’outil : la consigne vise une action d’agent (recherche, export, mise à jour).",
+      "noteEn": "Tool verb: the instruction targets an agent action (search, export, update)."
+    },
+    {
+      "ruleId": "C2-05",
+      "layer": "C2",
+      "techniques": [
+        "AML.T0025",
+        "AML.T0086"
+      ],
+      "coverage": "framed",
+      "noteFr": "Adresse jointe à un envoi de données : la voie d’exfiltration se dessine.",
+      "noteEn": "Address attached to a data send: the exfiltration path takes shape."
+    },
+    {
+      "ruleId": "C3-01",
+      "layer": "C3",
+      "techniques": [
+        "AML.T0051",
+        "AML.T0051.001"
+      ],
+      "coverage": "framed",
+      "noteFr": "Le modèle encadré répond « consigne » : l’injection est confirmée par une lecture isolée.",
+      "noteEn": "The framed model answers \"instruction\": the injection is confirmed by an isolated read."
+    },
+    {
+      "ruleId": "C3-02",
+      "layer": "C3",
+      "techniques": [
+        "AML.T0051"
+      ],
+      "coverage": "framed",
+      "noteFr": "Le modèle encadré répond « suspect » sans trancher : la charge reste encadrée.",
+      "noteEn": "The framed model answers \"suspect\" without deciding: the payload stays framed."
+    },
+    {
+      "ruleId": "C3-90",
+      "layer": "C3",
+      "techniques": [
+        "AML.T0054"
+      ],
+      "coverage": "framed",
+      "noteFr": "Réponse non conforme du modèle encadré : le passage est traité comme suspect, jamais comme sain.",
+      "noteEn": "Non-conforming answer from the framed model: the passage is treated as suspect, never as clean."
+    },
+    {
+      "ruleId": "C4-01",
+      "layer": "C4",
+      "techniques": [
+        "AML.T0021"
+      ],
+      "coverage": "detected",
+      "noteFr": "Compte créé récemment : indice de provenance, pas de preuve.",
+      "noteEn": "Recently created account: a provenance hint, not proof."
+    },
+    {
+      "ruleId": "C4-02",
+      "layer": "C4",
+      "techniques": [
+        "AML.T0073"
+      ],
+      "coverage": "detected",
+      "noteFr": "Canal anonyme : l’auteur n’est pas identifiable, le contenu reste interne.",
+      "noteEn": "Anonymous channel: the author is not identifiable, the content stays internal."
+    },
+    {
+      "ruleId": "C4-03",
+      "layer": "C4",
+      "techniques": [
+        "AML.T0046"
+      ],
+      "coverage": "detected",
+      "noteFr": "Longueur inhabituelle : signal de volume, pas de verdict.",
+      "noteEn": "Unusual length: a volume signal, not a verdict."
+    },
+    {
+      "ruleId": "C4-04",
+      "layer": "C4",
+      "techniques": [
+        "AML.T0068"
+      ],
+      "coverage": "detected",
+      "noteFr": "Changement de langue : le filtre lexical perd ses repères.",
+      "noteEn": "Language shift: the lexical filter loses its bearings."
+    },
+    {
+      "ruleId": "C4-05",
+      "layer": "C4",
+      "techniques": [
+        "AML.T0011.000"
+      ],
+      "coverage": "not-covered",
+      "noteFr": "Pièce jointe non analysable : le contenu n’est pas lu, le produit le dit et s’arrête là.",
+      "noteEn": "Unparseable attachment: the content is not read, the product says so and stops there."
+    },
+    {
+      "ruleId": "C4-06",
+      "layer": "C4",
+      "techniques": [
+        "AML.T0065"
+      ],
+      "coverage": "detected",
+      "noteFr": "Densité de phrases impératives : forme typique d’une consigne façonnée.",
+      "noteEn": "Density of imperative sentences: a typical shaped-instruction form."
+    },
+    {
+      "ruleId": "C4-07",
+      "layer": "C4",
+      "techniques": [
+        "AML.T0094"
+      ],
+      "coverage": "detected",
+      "noteFr": "Consigne différée (« plus tard, quand… ») : l’exécution est reportée.",
+      "noteEn": "Deferred instruction (\"later, when…\"): execution is postponed."
+    },
+    {
+      "ruleId": "C4-08",
+      "layer": "C4",
+      "techniques": [
+        "AML.T0068",
+        "AML.T0065"
+      ],
+      "coverage": "detected",
+      "noteFr": "Acrostiche : le sens est reconstruit lettre par lettre.",
+      "noteEn": "Acrostic: meaning is rebuilt letter by letter."
+    },
+    {
+      "ruleId": "iban",
+      "layer": "S",
+      "techniques": [
+        "AML.T0057",
+        "AML.T0025"
+      ],
+      "coverage": "blocked",
+      "noteFr": "Motif de donnée personnelle ou de compte : retenu par le sas, rien ne sort.",
+      "noteEn": "Personal-data or account pattern: held by the sas, nothing leaves."
+    },
+    {
+      "ruleId": "card",
+      "layer": "S",
+      "techniques": [
+        "AML.T0057",
+        "AML.T0025"
+      ],
+      "coverage": "blocked",
+      "noteFr": "Motif de donnée personnelle ou de compte : retenu par le sas, rien ne sort.",
+      "noteEn": "Personal-data or account pattern: held by the sas, nothing leaves."
+    },
+    {
+      "ruleId": "siret",
+      "layer": "S",
+      "techniques": [
+        "AML.T0057",
+        "AML.T0025"
+      ],
+      "coverage": "blocked",
+      "noteFr": "Motif de donnée personnelle ou de compte : retenu par le sas, rien ne sort.",
+      "noteEn": "Personal-data or account pattern: held by the sas, nothing leaves."
+    },
+    {
+      "ruleId": "siren",
+      "layer": "S",
+      "techniques": [
+        "AML.T0057",
+        "AML.T0025"
+      ],
+      "coverage": "blocked",
+      "noteFr": "Motif de donnée personnelle ou de compte : retenu par le sas, rien ne sort.",
+      "noteEn": "Personal-data or account pattern: held by the sas, nothing leaves."
+    },
+    {
+      "ruleId": "nir",
+      "layer": "S",
+      "techniques": [
+        "AML.T0057",
+        "AML.T0025"
+      ],
+      "coverage": "blocked",
+      "noteFr": "Motif de donnée personnelle ou de compte : retenu par le sas, rien ne sort.",
+      "noteEn": "Personal-data or account pattern: held by the sas, nothing leaves."
+    },
+    {
+      "ruleId": "email",
+      "layer": "S",
+      "techniques": [
+        "AML.T0057",
+        "AML.T0025"
+      ],
+      "coverage": "blocked",
+      "noteFr": "Motif de donnée personnelle ou de compte : retenu par le sas, rien ne sort.",
+      "noteEn": "Personal-data or account pattern: held by the sas, nothing leaves."
+    },
+    {
+      "ruleId": "phone",
+      "layer": "S",
+      "techniques": [
+        "AML.T0057",
+        "AML.T0025"
+      ],
+      "coverage": "blocked",
+      "noteFr": "Motif de donnée personnelle ou de compte : retenu par le sas, rien ne sort.",
+      "noteEn": "Personal-data or account pattern: held by the sas, nothing leaves."
+    },
+    {
+      "ruleId": "github-token",
+      "layer": "S",
+      "techniques": [
+        "AML.T0055",
+        "AML.T0057",
+        "AML.T0098"
+      ],
+      "coverage": "blocked",
+      "noteFr": "Motif de donnée personnelle ou de compte : retenu par le sas, rien ne sort.",
+      "noteEn": "Personal-data or account pattern: held by the sas, nothing leaves."
+    },
+    {
+      "ruleId": "api-key",
+      "layer": "S",
+      "techniques": [
+        "AML.T0055",
+        "AML.T0057",
+        "AML.T0098"
+      ],
+      "coverage": "blocked",
+      "noteFr": "Motif de donnée personnelle ou de compte : retenu par le sas, rien ne sort.",
+      "noteEn": "Personal-data or account pattern: held by the sas, nothing leaves."
+    },
+    {
+      "ruleId": "aws-access-key",
+      "layer": "S",
+      "techniques": [
+        "AML.T0055",
+        "AML.T0057",
+        "AML.T0098"
+      ],
+      "coverage": "blocked",
+      "noteFr": "Motif de donnée personnelle ou de compte : retenu par le sas, rien ne sort.",
+      "noteEn": "Personal-data or account pattern: held by the sas, nothing leaves."
+    },
+    {
+      "ruleId": "jwt",
+      "layer": "S",
+      "techniques": [
+        "AML.T0055",
+        "AML.T0057",
+        "AML.T0098"
+      ],
+      "coverage": "blocked",
+      "noteFr": "Motif de donnée personnelle ou de compte : retenu par le sas, rien ne sort.",
+      "noteEn": "Personal-data or account pattern: held by the sas, nothing leaves."
+    }
+  ],
+  "gaps": [
+    {
+      "techniqueId": "AML.T0080",
+      "coverage": "not-covered",
+      "noteFr": "La quarantaine de session limite la conséquence d’un contexte pollué ; le produit ne détecte pas l’empoisonnement lui-même.",
+      "noteEn": "Session quarantine limits the consequence of a polluted context; the product does not detect the poisoning itself."
+    },
+    {
+      "techniqueId": "AML.T0029",
+      "coverage": "not-covered",
+      "noteFr": "La limite de débit du sas (#38) plafonne les réponses publiques par agent, pas les appels au modèle : un déni de service de l’IA n’est ni détecté ni bloqué.",
+      "noteEn": "The sas rate limit (#38) caps public replies per agent, not model calls: an AI denial of service is neither detected nor blocked."
+    },
+    {
+      "techniqueId": "AML.T0034.002",
+      "coverage": "not-covered",
+      "noteFr": "La consommation de ressources par l’agent n’est pas mesurée ; seule la limite de débit du sas (#38) borne indirectement le volume de sorties.",
+      "noteEn": "Agent resource consumption is not measured; only the sas rate limit (#38) indirectly bounds output volume."
+    },
+    {
+      "techniqueId": "AML.T0070",
+      "coverage": "not-covered",
+      "noteFr": "Le produit n’ingère aucun corpus RAG : la surface n’existe pas ici.",
+      "noteEn": "The product ingests no RAG corpus: the surface does not exist here."
+    },
+    {
+      "techniqueId": "AML.T0092",
+      "coverage": "not-covered",
+      "noteFr": "L’historique de conversation n’est pas réanalysé à chaque tour.",
+      "noteEn": "The conversation history is not re-analysed on every turn."
+    },
+    {
+      "techniqueId": "AML.T0058",
+      "coverage": "not-covered",
+      "noteFr": "Aucun modèle n’est entraîné ni publié depuis le produit.",
+      "noteEn": "No model is trained or published from the product."
+    }
+  ],
+  "unmapped": [
+    {
+      "ruleId": "C2-09",
+      "reasonFr": "Identifiant présent uniquement dans un fixture de test (precision.test.ts) : aucune règle de production ne l’émet.",
+      "reasonEn": "Identifier present only in a test fixture (precision.test.ts): no production rule emits it."
+    }
+  ],
+  "catalogue": {
+    "AML.T0000": "Search Open Technical Databases",
+    "AML.T0000.000": "Journals and Conference Proceedings",
+    "AML.T0000.001": "Pre-Print Repositories",
+    "AML.T0000.002": "Technical Blogs",
+    "AML.T0001": "Search Open AI Vulnerability Analysis",
+    "AML.T0002": "Acquire Public AI Artifacts",
+    "AML.T0002.000": "Datasets",
+    "AML.T0002.001": "Models",
+    "AML.T0002.002": "AI Agent Configuration",
+    "AML.T0003": "Search Victim-Owned Websites",
+    "AML.T0004": "Search Application Repositories",
+    "AML.T0005": "Create Proxy AI Model",
+    "AML.T0005.000": "Train Proxy via Gathered AI Artifacts",
+    "AML.T0005.001": "Train Proxy via Replication",
+    "AML.T0005.002": "Use Pre-Trained Model",
+    "AML.T0006": "Active Scanning",
+    "AML.T0007": "Discover AI Artifacts",
+    "AML.T0008": "Acquire Infrastructure",
+    "AML.T0008.000": "AI Development Workspaces",
+    "AML.T0008.001": "Consumer Hardware",
+    "AML.T0008.002": "Domains",
+    "AML.T0008.003": "Physical Countermeasures",
+    "AML.T0008.004": "Serverless",
+    "AML.T0008.005": "AI Service Proxies",
+    "AML.T0010": "AI Supply Chain Compromise",
+    "AML.T0010.000": "Hardware",
+    "AML.T0010.001": "AI Software",
+    "AML.T0010.002": "Data",
+    "AML.T0010.003": "Model",
+    "AML.T0010.004": "Container Registry",
+    "AML.T0010.005": "AI Agent Tool",
+    "AML.T0011": "User Execution",
+    "AML.T0011.000": "Unsafe AI Artifacts",
+    "AML.T0011.001": "Malicious Package",
+    "AML.T0011.002": "Poisoned AI Agent Tool",
+    "AML.T0011.003": "Malicious Link",
+    "AML.T0012": "Valid Accounts",
+    "AML.T0013": "Discover AI Model Ontology",
+    "AML.T0014": "Discover AI Model Family",
+    "AML.T0015": "Evade AI Model",
+    "AML.T0016": "Obtain Capabilities",
+    "AML.T0016.000": "Adversarial AI Attack Implementations",
+    "AML.T0016.001": "Software Tools",
+    "AML.T0016.002": "Generative AI",
+    "AML.T0017": "Develop Capabilities",
+    "AML.T0017.000": "Adversarial AI Attacks",
+    "AML.T0018": "Manipulate AI Model",
+    "AML.T0018.000": "Poison AI Model",
+    "AML.T0018.001": "Modify AI Model Architecture",
+    "AML.T0018.002": "Embed Malware",
+    "AML.T0019": "Publish Poisoned Datasets",
+    "AML.T0020": "Poison Training Data",
+    "AML.T0021": "Establish Accounts",
+    "AML.T0024": "Exfiltration via AI Inference API",
+    "AML.T0024.000": "Infer Training Data Membership",
+    "AML.T0024.001": "Invert AI Model",
+    "AML.T0024.002": "Extract AI Model",
+    "AML.T0025": "Exfiltration via Cyber Means",
+    "AML.T0029": "Denial of AI Service",
+    "AML.T0031": "Erode AI Model Integrity",
+    "AML.T0034": "Cost Harvesting",
+    "AML.T0034.000": "Excessive Queries",
+    "AML.T0034.001": "Resource-Intensive Queries",
+    "AML.T0034.002": "Agentic Resource Consumption",
+    "AML.T0035": "AI Artifact Collection",
+    "AML.T0036": "Data from Information Repositories",
+    "AML.T0037": "Data from Local System",
+    "AML.T0040": "AI Model Inference API Access",
+    "AML.T0041": "Physical Environment Access",
+    "AML.T0042": "Verify Attack",
+    "AML.T0043": "Craft Adversarial Data",
+    "AML.T0043.000": "White-Box Optimization",
+    "AML.T0043.001": "Black-Box Optimization",
+    "AML.T0043.002": "Black-Box Transfer",
+    "AML.T0043.003": "Manual Modification",
+    "AML.T0043.004": "Insert Backdoor Trigger",
+    "AML.T0044": "Full AI Model Access",
+    "AML.T0046": "Spamming AI System with Chaff Data",
+    "AML.T0047": "AI-Enabled Product or Service",
+    "AML.T0048": "External Harms",
+    "AML.T0048.000": "Financial Harm",
+    "AML.T0048.001": "Reputational Harm",
+    "AML.T0048.002": "Societal Harm",
+    "AML.T0048.003": "User Harm",
+    "AML.T0048.004": "AI Intellectual Property Theft",
+    "AML.T0049": "Exploit Public-Facing Application",
+    "AML.T0050": "Command and Scripting Interpreter",
+    "AML.T0051": "LLM Prompt Injection",
+    "AML.T0051.000": "Direct",
+    "AML.T0051.001": "Indirect",
+    "AML.T0051.002": "Triggered",
+    "AML.T0052": "Phishing",
+    "AML.T0052.000": "Spearphishing via Social Engineering LLM",
+    "AML.T0052.001": "Deepfake-Assisted Phishing",
+    "AML.T0053": "AI Agent Tool Invocation",
+    "AML.T0054": "LLM Jailbreak",
+    "AML.T0055": "Unsecured Credentials",
+    "AML.T0056": "Extract LLM System Prompt",
+    "AML.T0057": "LLM Data Leakage",
+    "AML.T0058": "Publish Poisoned Models",
+    "AML.T0059": "Erode Dataset Integrity",
+    "AML.T0060": "Publish Hallucinated Entities",
+    "AML.T0061": "LLM Prompt Self-Replication",
+    "AML.T0062": "Discover LLM Hallucinations",
+    "AML.T0063": "Discover AI Model Outputs",
+    "AML.T0064": "Gather RAG-Indexed Targets",
+    "AML.T0065": "LLM Prompt Crafting",
+    "AML.T0066": "Retrieval Content Crafting",
+    "AML.T0067": "LLM Trusted Output Components Manipulation",
+    "AML.T0067.000": "Citations",
+    "AML.T0068": "LLM Prompt Obfuscation",
+    "AML.T0069": "Discover LLM System Information",
+    "AML.T0069.000": "Special Character Sets",
+    "AML.T0069.001": "System Instruction Keywords",
+    "AML.T0069.002": "System Prompt",
+    "AML.T0070": "RAG Poisoning",
+    "AML.T0071": "False RAG Entry Injection",
+    "AML.T0072": "Reverse Shell",
+    "AML.T0073": "Impersonation",
+    "AML.T0074": "Masquerading",
+    "AML.T0075": "Cloud Service Discovery",
+    "AML.T0076": "Corrupt AI Model",
+    "AML.T0077": "LLM Response Rendering",
+    "AML.T0078": "Drive-by Compromise",
+    "AML.T0079": "Stage Capabilities",
+    "AML.T0080": "AI Agent Context Poisoning",
+    "AML.T0080.000": "Memory",
+    "AML.T0080.001": "Thread",
+    "AML.T0081": "Modify AI Agent Configuration",
+    "AML.T0082": "RAG Credential Harvesting",
+    "AML.T0083": "Credentials from AI Agent Configuration",
+    "AML.T0084": "Discover AI Agent Configuration",
+    "AML.T0084.000": "Embedded Knowledge",
+    "AML.T0084.001": "Tool Definitions",
+    "AML.T0084.002": "Activation Triggers",
+    "AML.T0084.003": "Call Chains",
+    "AML.T0085": "Data from AI Services",
+    "AML.T0085.000": "RAG Databases",
+    "AML.T0085.001": "AI Agent Tools",
+    "AML.T0086": "Exfiltration via AI Agent Tool Invocation",
+    "AML.T0087": "Gather Victim Identity Information",
+    "AML.T0088": "Generate Deepfakes",
+    "AML.T0089": "Process Discovery",
+    "AML.T0090": "OS Credential Dumping",
+    "AML.T0091": "Use Alternate Authentication Material",
+    "AML.T0091.000": "Application Access Token",
+    "AML.T0092": "Manipulate User LLM Chat History",
+    "AML.T0093": "Prompt Infiltration via Public-Facing Application",
+    "AML.T0094": "Delay Execution of LLM Instructions",
+    "AML.T0095": "Search Open Websites/Domains",
+    "AML.T0095.000": "Code Repositories",
+    "AML.T0096": "AI Service API",
+    "AML.T0097": "Virtualization/Sandbox Evasion",
+    "AML.T0098": "AI Agent Tool Credential Harvesting",
+    "AML.T0099": "AI Agent Tool Data Poisoning",
+    "AML.T0100": "AI Agent Clickbait",
+    "AML.T0101": "Data Destruction via AI Agent Tool Invocation",
+    "AML.T0102": "Generate Malicious Commands",
+    "AML.T0103": "Deploy AI Agent",
+    "AML.T0104": "Publish Poisoned AI Agent Tool",
+    "AML.T0105": "Escape to Host",
+    "AML.T0106": "Exploitation for Credential Access",
+    "AML.T0107": "Exploitation for Defense Evasion",
+    "AML.T0108": "AI Agent",
+    "AML.T0109": "AI Supply Chain Rug Pull",
+    "AML.T0110": "AI Agent Tool Poisoning",
+    "AML.T0111": "AI Supply Chain Reputation Inflation",
+    "AML.T0112": "Machine Compromise",
+    "AML.T0112.000": "Local AI Agent",
+    "AML.T0112.001": "AI Artifacts"
+  }
+}
