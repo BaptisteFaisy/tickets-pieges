@@ -12,3 +12,6 @@ coverage/
 .env
 .env.*
 *.tsbuildinfo
+
+# rapports de semis et de verification du site de demo (donnees d'environnement)
+out/
