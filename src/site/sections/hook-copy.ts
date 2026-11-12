@@ -70,6 +70,7 @@ export const L = {
   policyWarnings: { fr: 'Avertissements — champs déclarés à tort par l’appelant', en: 'Warnings — fields wrongly declared by the caller' },
   policyEmpty: { fr: 'Interrogez la politique pour voir l’énoncé rendu à l’agent.', en: 'Query the policy to see the statement returned to the agent.' },
   policyStatement: { fr: 'Énoncé de politique rendu (JSON)', en: 'Policy statement returned (JSON)' },
+  limitsTitle: { fr: 'Les deux limites, dites franchement (§11)', en: 'The two limits, stated plainly (§11)' },
 } as const;
 
 export type CopyKey = keyof typeof L;
