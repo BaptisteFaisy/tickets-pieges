@@ -185,7 +185,8 @@ describe('rapport', () => {
     });
     expect(report.sampleSize).toBe(2);
     expect(report.intervals.mode?.source).toBe('measured');
-    expect(report.intervals.mode?.value).toBe(2000);
+    expect(report.intervals.mode?.value).toBe(1600);
+    expect(report.intervals.c3?.value).toBe(2000);
     expect(report.intervals.origin?.value).toBe(400);
     expect(report.queue.source).toBe('measured');
     expect(report.queue.value?.count).toBe(1);
