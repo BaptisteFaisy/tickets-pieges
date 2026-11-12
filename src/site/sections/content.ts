@@ -26,6 +26,7 @@ import { CONFUSABLE_COUNT, findLookalikes, type Lookalike } from '../../core/hom
 import { detectLanguage, type DetectionLanguage } from '../../core/langues';
 import type { Language, LayerHit } from '../../core/types';
 import { badge, buttonHtml, details, field, grid, heading, note, panel, table, textareaHtml } from '../dom';
+import { extractPanel, runDocx, runPdf } from './content-extract';
 import type { Section, SectionContext } from './types';
 
 /** Textes visibles de la section, dans les deux langues. */
@@ -258,11 +259,13 @@ function run(root: HTMLElement, ctx: SectionContext): void {
 }
 
 function render(ctx: SectionContext): string {
-  return grid(form(ctx), panel(note(label(ctx, 'empty')), 'c-result'));
+  return grid(form(ctx), panel(note(label(ctx, 'empty')), 'c-result')) + extractPanel(ctx);
 }
 
 function mount(root: HTMLElement, ctx: SectionContext): void {
   root.querySelector<HTMLButtonElement>('#c-run')?.addEventListener('click', () => run(root, ctx));
+  root.querySelector<HTMLButtonElement>('#c-pdf')?.addEventListener('click', () => runPdf(root, ctx));
+  root.querySelector<HTMLButtonElement>('#c-docx')?.addEventListener('click', () => runDocx(root, ctx));
   run(root, ctx);
 }
 
