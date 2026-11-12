@@ -51,7 +51,7 @@ const SYNONYMS: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** Plafond de mutants par entrée (le banc doit rester sous 5 min en CI). */
-export const MAX_MUTANTS_PER_ENTRY = 4;
+export const MAX_MUTANTS_PER_ENTRY = 5;
 
 /** Taille maximale d'un texte muté (au-delà, la mutation est refusée). */
 export const MAX_MUTANT_CHARS = 6000;
@@ -194,9 +194,13 @@ export function mutateEntry(entry: CorpusEntry, options: MutationOptions = {}): 
   const seed = options.seed ?? 1;
   const max = Math.min(options.maxPerEntry ?? MAX_MUTANTS_PER_ENTRY, MAX_MUTANTS_PER_ENTRY);
   const played = (options.only ?? MUTATIONS).filter((mutation) => MUTATIONS.includes(mutation));
+  // Rotation déterministe : quand le plafond est bas, chaque entrée ne joue pas
+  // toujours les mêmes mutations — la couverture des cinq reste équilibrée.
+  const rotation = played.length === 0 ? 0 : (seed + entry.id.length) % played.length;
+  const ordered = [...played.slice(rotation), ...played.slice(0, rotation)];
   const mutants: Mutant[] = [];
-  for (let i = 0; i < played.length && mutants.length < max; i += 1) {
-    const mutation = played[i];
+  for (let i = 0; i < ordered.length && mutants.length < max; i += 1) {
+    const mutation = ordered[i];
     if (!mutation) continue;
     const random = mulberry32(seed + i * 7919 + entry.id.length * 131);
     const segments = applyMutation(entry.text, mutation, random).filter((part) => part.length <= MAX_MUTANT_CHARS);
