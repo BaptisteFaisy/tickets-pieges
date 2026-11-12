@@ -1,4 +1,5 @@
 import type { DlpFinding } from '../../core/dlp';
+import { createDraft, decidePublication } from '../../core/drafts';
 import { checkOutbound, outboundCaveats } from '../../core/outbound';
 import type { OutboundDlpResult } from '../../core/outbound';
 import type { Language, OutboundAction, OutboundContext, OutboundHit } from '../../core/types';
@@ -42,6 +43,21 @@ const FR = {
   pattern: 'Motif',
   caveatsH: 'Ce que le sas n’a pas pu vérifier',
   pending: 'Renseigne le formulaire puis lance le contrôle.',
+  redactedH: 'Texte masqué réversible',
+  redactedNote: 'Table de correspondance affichée à titre inerte : sur le produit réel, elle reste hors du ticket. Aucune restauration n’est câblée ici.',
+  redactedNone: 'Rien à masquer dans ce texte.',
+  token: 'Jeton',
+  value: 'Valeur',
+  draftH: 'Brouillon et publication',
+  draftNote: 'Le brouillon reste une note interne tant qu’une relecture humaine ET un sas favorable ne sont pas réunis.',
+  humanReview: 'Relecture humaine',
+  visibility: 'Visibilité',
+  reason: 'Motif',
+  journalH: 'Journal du geste',
+  draftId: 'Brouillon',
+  draftAuthor: 'Auteur',
+  internal: 'note interne',
+  public: 'commentaire public',
 } as const;
 
 type TKey = keyof typeof FR;
@@ -80,6 +96,21 @@ const EN: Record<TKey, string> = {
   pattern: 'Pattern',
   caveatsH: 'What the gate could not check',
   pending: 'Fill the form, then run the check.',
+  redactedH: 'Reversible masked text',
+  redactedNote: 'Correspondence table shown inert: in the real product it stays out of the ticket. No restore is wired here.',
+  redactedNone: 'Nothing to mask in this text.',
+  token: 'Token',
+  value: 'Value',
+  draftH: 'Draft and publication',
+  draftNote: 'The draft stays an internal note until BOTH a human review and a favourable gate are met.',
+  humanReview: 'Human review',
+  visibility: 'Visibility',
+  reason: 'Reason',
+  journalH: 'Action journal',
+  draftId: 'Draft',
+  draftAuthor: 'Author',
+  internal: 'internal note',
+  public: 'public comment',
 };
 
 const TEXT: Record<Language, Record<TKey, string>> = { fr: FR, en: EN };
@@ -160,6 +191,7 @@ function formHtml(lang: Language): string {
     field(tr(lang, 'orgs'), textareaHtml('ob-orgs', 2, 'Globex, Initech', 'Globex, Initech')),
     field(tr(lang, 'keys'), textareaHtml('ob-keys', 2, 'GLOBEX-12', 'GLOBEX-12')),
     field(tr(lang, 'urls'), textareaHtml('ob-urls', 3, 'https://acme-support.example.com', 'https://acme-support.example.com')),
+    field(tr(lang, 'humanReview'), yesNoSelect(lang, 'ob-review', false)),
     buttonHtml('ob-run', tr(lang, 'run')),
   ];
   return controls.join('');
@@ -193,7 +225,40 @@ function caveatsHtml(lang: Language, context: OutboundContext): string {
   return caveats.length === 0 ? '' : details(tr(lang, 'caveatsH'), list(caveats), true);
 }
 
-function runHtml(lang: Language, v: OutboundDlpResult, context: OutboundContext): string {
+function redactionHtml(lang: Language, v: OutboundDlpResult): string {
+  if (!v.redactedText || !v.redactionTable) return note(tr(lang, 'redactedNone'));
+  const rows = v.redactionTable.entries.map((e) => [e.token, e.ruleId, e.value]);
+  return [
+    pre(v.redactedText),
+    details(tr(lang, 'token'), table([tr(lang, 'token'), tr(lang, 'pattern'), tr(lang, 'value')], rows), true),
+    note(tr(lang, 'redactedNote')),
+  ].join('');
+}
+
+function draftHtml(lang: Language, text: string, v: OutboundDlpResult, humanReviewed: boolean, now: string): string {
+  const draft = createDraft({
+    id: `draft-${v.issueKey}`,
+    issueId: v.issueKey.toLowerCase(),
+    issueKey: v.issueKey,
+    text,
+    authorAccountId: 'agent-demo',
+    now,
+  });
+  const decision = decidePublication(draft, v, humanReviewed, { language: lang, now, reviewerAccountId: 'human-demo' });
+  const rows = decision.journal.map((entry) => [entry.kind, entry.at, JSON.stringify(entry.detail)]);
+  return [
+    note(tr(lang, 'draftNote')),
+    badge(decision.visibility === 'public' ? tr(lang, 'public') : tr(lang, 'internal'), decision.visibility === 'public' ? 'ok' : 'warn'),
+    kv([
+      [tr(lang, 'reason'), decision.reason],
+      [tr(lang, 'draftId'), draft.id],
+      [tr(lang, 'draftAuthor'), draft.authorAccountId],
+    ]),
+    details(tr(lang, 'journalH'), table(['kind', tr(lang, 'checkedAt'), tr(lang, 'detail')], rows)),
+  ].join('');
+}
+
+function runHtml(lang: Language, text: string, v: OutboundDlpResult, context: OutboundContext, humanReviewed: boolean, now: string): string {
   return [
     heading(tr(lang, 'result')),
     verdictHtml(lang, v),
@@ -201,6 +266,10 @@ function runHtml(lang: Language, v: OutboundDlpResult, context: OutboundContext)
     hitsHtml(lang, v.hits),
     heading(tr(lang, 'dlpH')),
     dlpHtml(lang, v.dlp),
+    heading(tr(lang, 'redactedH')),
+    redactionHtml(lang, v),
+    heading(tr(lang, 'draftH')),
+    draftHtml(lang, text, v, humanReviewed, now),
     caveatsHtml(lang, context),
   ].join('');
 }
@@ -216,10 +285,11 @@ function mount(root: HTMLElement, ctx: SectionContext): void {
   const lang = ctx.lang;
   byId<HTMLButtonElement>(root, 'ob-run')?.addEventListener('click', () => {
     const text = valueOf(root, 'ob-text');
+    const humanReviewed = valueOf(root, 'ob-review') === 'yes';
     const { context, stage } = readContext(root, lang);
     const verdict = checkOutbound(text, context, { stage, language: lang, now: ctx.now });
     const out = byId<HTMLElement>(root, 'ob-result');
-    if (out) out.innerHTML = runHtml(lang, verdict, context);
+    if (out) out.innerHTML = runHtml(lang, text, verdict, context, humanReviewed, ctx.now);
   });
 }
 
