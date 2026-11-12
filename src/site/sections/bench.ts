@@ -15,7 +15,7 @@ import { measureRobustness, mutateEntry, type MutationId, type MutationOptions, 
 import { measureCorpus, type CorpusMetrics } from '../../bench/metrics';
 import { createRecordingPort, runShadow, type ShadowReport } from '../../bench/shadow';
 import { byId, buttonHtml, field, grid, heading, note, panel, selectHtml, valueOf } from '../dom';
-import { familyKeys, filterEntries, fullCorpus, humanReference, PLAYED_CAP, playedEntries } from './bench-corpus';
+import { catoSteps, familyKeys, filterEntries, fullCorpus, humanReference, PLAYED_CAP, playedEntries } from './bench-corpus';
 import {
   corpusOptions,
   entryView,
@@ -24,8 +24,10 @@ import {
   gapsView,
   headerView,
   metricsView,
+  scenarioView,
   shadowView,
   type BrokenExample,
+  type ScenarioStep,
 } from './bench-views';
 import type { Section, SectionContext } from './types';
 
@@ -61,6 +63,7 @@ export interface BenchRun {
   readonly robustness: RobustnessReport;
   readonly examples: readonly BrokenExample[];
   readonly shadow: ShadowReport;
+  readonly scenario: readonly ScenarioStep[];
 }
 
 /** Premier exemple avant/après par mutation, parmi les mutants qui cassent. */
@@ -98,6 +101,7 @@ export function playBench(entries: readonly CorpusEntry[]): BenchRun {
     robustness,
     examples: brokenExamples(entries, robustness, fuzzOptions),
     shadow,
+    scenario: catoSteps().map((entry) => ({ entry, hits: detect(entry) })),
   };
 }
 
@@ -152,7 +156,8 @@ function run(root: HTMLElement, ctx: SectionContext): void {
     gapsView(ctx.lang) +
     metricsView(outcome.metrics, ctx.lang) +
     fuzzView(outcome.robustness, outcome.examples, ctx.lang) +
-    shadowView(outcome.shadow, ctx.lang);
+    shadowView(outcome.shadow, ctx.lang) +
+    scenarioView(outcome.scenario, ctx.lang);
 }
 
 /** Formulaire : filtres du corpus, entrée navigable, bouton de rejeu. */

@@ -268,3 +268,39 @@ export function shadowView(report: ShadowReport, lang: Language): string {
       ? 'Référence humaine hors ligne : les étiquettes du corpus, pas de verdict humain réel.'
       : 'Offline human reference: corpus labels, no real human verdict.');
 }
+
+/** Une étape de scénario rejouée : l'entrée du corpus et ses signaux. */
+export interface ScenarioStep {
+  readonly entry: CorpusEntry;
+  readonly hits: readonly LayerHit[];
+}
+
+/** Une étape du scénario : rang, étiquette, détection, règles attendues/touchées. */
+function stepBlock(step: ScenarioStep, index: number, lang: Language): string {
+  const fr = lang === 'fr';
+  const { entry, hits } = step;
+  const fired = Array.from(new Set(hits.map((hit) => hit.ruleId))).sort();
+  const expected = entry.expectedRuleIds ?? [];
+  const covered = expected.length === 0 || expected.some((ruleId) => fired.includes(ruleId));
+  const badges = [
+    badge(`${fr ? 'Étape' : 'Step'} ${entry.scenarioStep ?? index + 1} · ${entry.id}`),
+    badge(entry.label, entry.label === 'attack' ? 'bad' : 'ok'),
+    badge(fired.length > 0 ? (fr ? 'détecté' : 'detected') : fr ? 'non détecté' : 'not detected', fired.length > 0 ? 'trapped' : 'clean'),
+    ...(expected.length > 0
+      ? [badge(`${fr ? 'règle attendue' : 'expected rule'} : ${expected.join(', ')}${covered ? ' ✓' : ' ✗'}`, covered ? 'ok' : 'warn')]
+      : []),
+  ].join(' ');
+  const rules = fired.length > 0 ? note(`${fr ? 'Règles touchées' : 'Fired rules'} : ${fired.join(', ')}`) : '';
+  return `<div class="block">${badges}${rules}${pre(entry.text)}</div>`;
+}
+
+/** Bloc scénario « Cato 2025 » (#95) : la campagne multi-messages, étape par étape. */
+export function scenarioView(steps: readonly ScenarioStep[], lang: Language): string {
+  const fr = lang === 'fr';
+  if (steps.length === 0) return '';
+  const intro = note(fr
+    ? 'Campagne réelle multi-messages (Cato 2025) : ouverture polie légitime, puis faux marqueur système, changement de rôle, commande d’outil, adresse d’exfiltration, charge encodée, invisibles et pression finale. Chaque segment est rejoué dans l’ordre, avec les couches du banc.'
+    : 'Real multi-message campaign (Cato 2025): polite legitimate opener, then fake system marker, role switch, tool command, exfiltration address, encoded payload, invisibles and final pressure. Each segment is replayed in order, with the bench layers.');
+  const blocks = steps.map((step, index) => stepBlock(step, index, lang)).join('');
+  return heading(fr ? 'Scénario Cato 2025 — étape par étape (#95)' : 'Cato 2025 scenario — step by step (#95)') + intro + blocks;
+}

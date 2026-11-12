@@ -21,6 +21,7 @@ import {
   groupByFamily,
   mergeCorpus,
   sampleCorpus,
+  scenarioSteps,
   type CorpusEntry,
   type CorpusFile,
 } from '../../bench/corpus';
@@ -70,4 +71,12 @@ export function humanReference(entries: readonly CorpusEntry[]): Record<string, 
     verdicts[entry.id] = entry.label === 'attack' ? 'trapped' : 'false-positive';
   }
   return verdicts;
+}
+
+/** Identifiant du scénario rejoué du corpus (#95). */
+export const SCENARIO_ID = 'cato-2025';
+
+/** Segments du scénario « Cato 2025 », dans l'ordre de rejeu. */
+export function catoSteps(): CorpusEntry[] {
+  return scenarioSteps(CORPUS, SCENARIO_ID);
 }
