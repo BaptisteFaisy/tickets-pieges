@@ -29,6 +29,7 @@ import {
   type LureKind,
 } from '../../core/lure';
 import { appendEntry, verifyChain, type ChainEntry } from '../../core/canary-chain';
+import { weeklySchedule } from '../../core/canary-schedule';
 import { badge, buttonHtml, field, grid, heading, kv, note, panel, pre, selectHtml, table, textareaHtml } from '../dom';
 import { byId } from '../dom';
 import type { Section, SectionContext } from './types';
@@ -84,6 +85,10 @@ const LABELS = {
   chainOk: { fr: 'Chaîne intègre', en: 'Chain intact' },
   chainBroken: { fr: 'Chaîne rompue : la modification est détectée', en: 'Chain broken: tampering detected' },
   chainEmpty: { fr: 'Aucune entrée : lancez un exercice.', en: 'No entries yet: run an exercise.' },
+  schedule: { fr: 'Planning hebdomadaire : la rotation des jetons (#41)', en: 'Weekly schedule: token rotation (#41)' },
+  queue: { fr: 'File', en: 'Queue' },
+  week: { fr: 'Semaine', en: 'Week' },
+  token: { fr: 'Jeton', en: 'Token' },
   hint: {
     fr: 'Tout se calcule dans votre navigateur : aucun appel réseau, rien ne quitte la page.',
     en: 'Everything runs in your browser: no network call, nothing leaves this page.',
@@ -178,6 +183,27 @@ export function leakHtml(lure: Lure | null, text: string, foundIn: string, at: s
     note(describeIncident(ctx.lang, incident)),
     kv([['trouvé dans', incident.foundIn], ['par', incident.matchedBy], ['à', incident.at]]),
   ].join('');
+}
+
+/** Graine et files de la démo : stables d'un rendu à l'autre. */
+const DEMO_SEED = 'demo-canary';
+const DEMO_QUEUES = ['support', 'facturation'];
+
+/** Trois semaines successives à partir de `ctx.now` — jamais l'horloge système. */
+export function weekStarts(now: string, count = 3): string[] {
+  const start = Date.parse(now);
+  return Array.from({ length: count }, (_, i) =>
+    new Date(start + i * 7 * 86_400_000).toISOString().slice(0, 10),
+  );
+}
+
+/** Le planning complet : même file, semaines différentes → jetons différents. */
+export function scheduleHtml(ctx: SectionContext): string {
+  const slots = weeklySchedule(DEMO_SEED, DEMO_QUEUES, weekStarts(ctx.now));
+  return table(
+    [label(ctx, 'queue'), label(ctx, 'week'), label(ctx, 'token')],
+    slots.map((slot) => [slot.queueKey, slot.week, slot.token]),
+  );
 }
 
 /** Copie où une entrée est modifiée : la démo qui prouve que la chaîne casse. */
@@ -379,7 +405,11 @@ function chainPanel(ctx: SectionContext): string {
 }
 
 function render(ctx: SectionContext): string {
-  return grid(form(ctx), panel(note(label(ctx, 'empty')), 'c-result')) + chainPanel(ctx);
+  return (
+    grid(form(ctx), panel(note(label(ctx, 'empty')), 'c-result')) +
+    chainPanel(ctx) +
+    panel(heading(label(ctx, 'schedule')) + scheduleHtml(ctx), 'c-schedule')
+  );
 }
 
 export const canarySection: Section = {
