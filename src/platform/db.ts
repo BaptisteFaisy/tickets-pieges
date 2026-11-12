@@ -152,7 +152,7 @@ function decodePattern(r: Db): PatternRow {
     kind: r.kind as PatternRow['kind'],
     expression: str(r.expression),
     language: str(r.language),
-    precision: num(r.precision),
+    precision: num(r.rule_precision),
     enabled: bool(r.enabled),
     demoted: bool(r.demoted),
   };
@@ -172,14 +172,14 @@ export function sqlPatternsRepo(exec: SqlExecutor): PatternRepo {
           kind: row.kind,
           expression: row.expression,
           language: row.language,
-          precision: row.precision,
+          rule_precision: row.precision,
           enabled: row.enabled ? 1 : 0,
           demoted: row.demoted ? 1 : 0,
         }),
       );
     },
     async setPrecision(id, precision, demoted) {
-      await exec.exec(updateQuery(TABLE.pattern, { precision, demoted: demoted ? 1 : 0 }, { id }));
+      await exec.exec(updateQuery(TABLE.pattern, { rule_precision: precision, demoted: demoted ? 1 : 0 }, { id }));
     },
   };
 }

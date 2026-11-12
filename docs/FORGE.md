@@ -22,6 +22,14 @@ séparation.
 
 - **`LIMIT ?` lié → `ERROR 1210 Incorrect arguments to LIMIT`.** La limite
   s'inline après coercion entière : `` `LIMIT ${Math.max(1, n | 0)}` ``.
+- **Les mots réservés cassent le DDL, et rien ne le voit en local.** `PRECISION`
+  est réservé par MySQL/TiDB : une colonne `precision DOUBLE` fait échouer
+  `CREATE TABLE` avec `ER_PARSE_ERROR 1064`. Ni `forge lint`, ni `tsc`, ni les
+  tests ne l'attrapent — le SQL n'est exécuté que par Forge SQL. Mesuré sur site
+  le 12 novembre 2026 : aucune table créée, donc aucun déclencheur ne pouvait
+  écrire. Colonne renommée `rule_precision` (le contrat TypeScript, lui, garde
+  `precision`). Vérifier chaque nom de colonne contre la liste des mots réservés
+  MySQL avant de déployer, et **lire `forge logs` après le premier événement réel**.
 - Le schéma se crée explicitement : un `defineSchemaOnce()` jamais appelé laisse
   les tables absentes (panne silencieuse au premier `SELECT`).
 - Les colonnes `TEXT`/`JSON` se lisent en chaîne : sérialiser soi-même

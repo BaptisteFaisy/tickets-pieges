@@ -276,13 +276,16 @@ const DDL: string[] = [
     level VARCHAR(8) NULL,
     KEY idx_trust_project (project_key)
   )`,
+  // `rule_precision` et non `precision` : PRECISION est un mot réservé
+  // MySQL/TiDB — `ER_PARSE_ERROR 1064` mesuré sur site réel le 12 novembre 2026,
+  // alors que le schéma passait `forge lint` et les tests unitaires.
   `CREATE TABLE IF NOT EXISTS pattern (
     id VARCHAR(191) PRIMARY KEY,
     layer VARCHAR(4) NOT NULL,
     kind VARCHAR(48) NOT NULL,
     expression TEXT NOT NULL,
     language VARCHAR(8) NOT NULL,
-    precision DOUBLE NOT NULL,
+    rule_precision DOUBLE NOT NULL,
     enabled TINYINT NOT NULL,
     demoted TINYINT NOT NULL
   )`,

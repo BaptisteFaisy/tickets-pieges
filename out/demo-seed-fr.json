@@ -1,0 +1,54 @@
+{
+  "site": "one-atlas-cndz.atlassian.net",
+  "serviceDeskId": "11",
+  "requestTypeId": "142",
+  "language": "fr",
+  "requests": [
+    {
+      "sampleId": "fr-01-banale",
+      "issueKey": "SECOPS-165",
+      "issueId": "66654",
+      "gesture": "portail-client",
+      "expected": {
+        "trustLevel": "T1",
+        "suspicion": "clean",
+        "kinds": []
+      },
+      "comments": 0,
+      "divergences": [],
+      "seededAt": "2026-11-12T14:10:33Z"
+    },
+    {
+      "sampleId": "fr-02-anonyme",
+      "issueKey": "SECOPS-166",
+      "issueId": "66655",
+      "gesture": "portail-client",
+      "expected": {
+        "trustLevel": "T0",
+        "suspicion": "review",
+        "kinds": [
+          "anonymous-channel"
+        ]
+      },
+      "comments": 0,
+      "divergences": [
+        "canal « anonymousportal » non reproductible avec un jeton d'admin : créé via le portail"
+      ],
+      "seededAt": "2026-11-12T14:10:35Z"
+    },
+    {
+      "sampleId": "fr-03-interne",
+      "issueKey": "SECOPS-167",
+      "issueId": "66656",
+      "gesture": "jira-issue-interne",
+      "expected": {
+        "trustLevel": "T3",
+        "suspicion": "clean",
+        "kinds": []
+      },
+      "comments": 0,
+      "divergences": [],
+      "seededAt": "2026-11-12T14:10:37Z"
+    }
+  ]
+}
