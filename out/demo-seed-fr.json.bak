@@ -6,8 +6,8 @@
   "requests": [
     {
       "sampleId": "fr-01-banale",
-      "issueKey": "SECOPS-165",
-      "issueId": "66654",
+      "issueKey": "SECOPS-184",
+      "issueId": "66674",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -16,12 +16,12 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T14:10:33Z"
+      "seededAt": "2026-11-12T15:20:03Z"
     },
     {
       "sampleId": "fr-02-anonyme",
-      "issueKey": "SECOPS-166",
-      "issueId": "66655",
+      "issueKey": "SECOPS-185",
+      "issueId": "66675",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T0",
@@ -34,12 +34,12 @@
       "divergences": [
         "canal « anonymousportal » non reproductible avec un jeton d'admin : créé via le portail"
       ],
-      "seededAt": "2026-11-12T14:10:35Z"
+      "seededAt": "2026-11-12T15:20:06Z"
     },
     {
       "sampleId": "fr-03-interne",
-      "issueKey": "SECOPS-167",
-      "issueId": "66656",
+      "issueKey": "SECOPS-186",
+      "issueId": "66676",
       "gesture": "jira-issue-interne",
       "expected": {
         "trustLevel": "T3",
@@ -48,12 +48,12 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T14:10:37Z"
+      "seededAt": "2026-11-12T15:20:09Z"
     },
     {
       "sampleId": "fr-04-invisibles",
-      "issueKey": "SECOPS-168",
-      "issueId": "66658",
+      "issueKey": "SECOPS-187",
+      "issueId": "66677",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -64,12 +64,44 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T14:19:05Z"
+      "seededAt": "2026-11-12T15:20:11Z"
+    },
+    {
+      "sampleId": "fr-05-bidi",
+      "issueKey": "SECOPS-188",
+      "issueId": "66678",
+      "gesture": "portail-client",
+      "expected": {
+        "trustLevel": "T1",
+        "suspicion": "suspect",
+        "kinds": [
+          "bidi-override"
+        ]
+      },
+      "comments": 0,
+      "divergences": [],
+      "seededAt": "2026-11-12T15:20:13Z"
+    },
+    {
+      "sampleId": "fr-06-base64",
+      "issueKey": "SECOPS-189",
+      "issueId": "66679",
+      "gesture": "portail-client",
+      "expected": {
+        "trustLevel": "T1",
+        "suspicion": "suspect",
+        "kinds": [
+          "encoded-block"
+        ]
+      },
+      "comments": 0,
+      "divergences": [],
+      "seededAt": "2026-11-12T15:20:16Z"
     },
     {
       "sampleId": "fr-07-assistant",
-      "issueKey": "SECOPS-169",
-      "issueId": "66659",
+      "issueKey": "SECOPS-190",
+      "issueId": "66680",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -80,12 +112,12 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T14:34:10Z"
+      "seededAt": "2026-11-12T15:20:18Z"
     },
     {
       "sampleId": "fr-08-marqueur",
-      "issueKey": "SECOPS-170",
-      "issueId": "66660",
+      "issueKey": "SECOPS-191",
+      "issueId": "66681",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -97,44 +129,12 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T14:48:48Z"
-    },
-    {
-      "sampleId": "fr-05-bidi",
-      "issueKey": "SECOPS-171",
-      "issueId": "66661",
-      "gesture": "portail-client",
-      "expected": {
-        "trustLevel": "T1",
-        "suspicion": "suspect",
-        "kinds": [
-          "bidi-override"
-        ]
-      },
-      "comments": 0,
-      "divergences": [],
-      "seededAt": "2026-11-12T15:02:42Z"
-    },
-    {
-      "sampleId": "fr-06-base64",
-      "issueKey": "SECOPS-172",
-      "issueId": "66662",
-      "gesture": "portail-client",
-      "expected": {
-        "trustLevel": "T1",
-        "suspicion": "suspect",
-        "kinds": [
-          "encoded-block"
-        ]
-      },
-      "comments": 0,
-      "divergences": [],
-      "seededAt": "2026-11-12T15:02:44Z"
+      "seededAt": "2026-11-12T15:20:20Z"
     },
     {
       "sampleId": "fr-09-action",
-      "issueKey": "SECOPS-173",
-      "issueId": "66663",
+      "issueKey": "SECOPS-192",
+      "issueId": "66682",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -145,12 +145,12 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T15:02:46Z"
+      "seededAt": "2026-11-12T15:20:22Z"
     },
     {
       "sampleId": "fr-10-exfiltration",
-      "issueKey": "SECOPS-174",
-      "issueId": "66664",
+      "issueKey": "SECOPS-193",
+      "issueId": "66683",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -161,12 +161,12 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T15:02:48Z"
+      "seededAt": "2026-11-12T15:20:23Z"
     },
     {
       "sampleId": "fr-11-reformulee",
-      "issueKey": "SECOPS-175",
-      "issueId": "66665",
+      "issueKey": "SECOPS-194",
+      "issueId": "66684",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -177,12 +177,12 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T15:02:50Z"
+      "seededAt": "2026-11-12T15:20:25Z"
     },
     {
       "sampleId": "fr-12-bonne-foi",
-      "issueKey": "SECOPS-176",
-      "issueId": "66666",
+      "issueKey": "SECOPS-195",
+      "issueId": "66685",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -193,12 +193,12 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T15:02:52Z"
+      "seededAt": "2026-11-12T15:20:27Z"
     },
     {
       "sampleId": "fr-13-mentions",
-      "issueKey": "SECOPS-177",
-      "issueId": "66667",
+      "issueKey": "SECOPS-196",
+      "issueId": "66686",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -209,12 +209,12 @@
       "divergences": [
         "canal « email » non reproductible avec un jeton d'admin : créé via le portail"
       ],
-      "seededAt": "2026-11-12T15:02:54Z"
+      "seededAt": "2026-11-12T15:20:29Z"
     },
     {
       "sampleId": "fr-14-colle",
-      "issueKey": "SECOPS-178",
-      "issueId": "66668",
+      "issueKey": "SECOPS-197",
+      "issueId": "66687",
       "gesture": "jira-issue-interne",
       "expected": {
         "trustLevel": "T3",
@@ -225,12 +225,12 @@
       },
       "comments": 1,
       "divergences": [],
-      "seededAt": "2026-11-12T15:02:57Z"
+      "seededAt": "2026-11-12T15:20:33Z"
     },
     {
       "sampleId": "fr-15-repartie",
-      "issueKey": "SECOPS-179",
-      "issueId": "66669",
+      "issueKey": "SECOPS-198",
+      "issueId": "66688",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -241,12 +241,12 @@
       },
       "comments": 3,
       "divergences": [],
-      "seededAt": "2026-11-12T15:03:02Z"
+      "seededAt": "2026-11-12T15:20:38Z"
     },
     {
       "sampleId": "fr-16-champs",
-      "issueKey": "SECOPS-180",
-      "issueId": "66670",
+      "issueKey": "SECOPS-199",
+      "issueId": "66689",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -258,12 +258,12 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T15:03:04Z"
+      "seededAt": "2026-11-12T15:20:39Z"
     },
     {
       "sampleId": "fr-17-integration",
-      "issueKey": "SECOPS-181",
-      "issueId": "66671",
+      "issueKey": "SECOPS-200",
+      "issueId": "66690",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T0",
@@ -275,12 +275,12 @@
         "canal « API » non reproductible avec un jeton d'admin : créé via le portail",
         "compte d'app non reproductible : créé par un compte humain"
       ],
-      "seededAt": "2026-11-12T15:03:06Z"
+      "seededAt": "2026-11-12T15:20:42Z"
     },
     {
       "sampleId": "fr-18-image",
-      "issueKey": "SECOPS-182",
-      "issueId": "66672",
+      "issueKey": "SECOPS-201",
+      "issueId": "66691",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -291,12 +291,12 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T15:03:08Z"
+      "seededAt": "2026-11-12T15:20:44Z"
     },
     {
       "sampleId": "fr-19-langue-rare",
-      "issueKey": "SECOPS-183",
-      "issueId": "66673",
+      "issueKey": "SECOPS-202",
+      "issueId": "66692",
       "gesture": "portail-client",
       "expected": {
         "trustLevel": "T1",
@@ -305,7 +305,7 @@
       },
       "comments": 0,
       "divergences": [],
-      "seededAt": "2026-11-12T15:03:10Z"
+      "seededAt": "2026-11-12T15:20:46Z"
     }
   ]
 }

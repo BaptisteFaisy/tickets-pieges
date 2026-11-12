@@ -136,9 +136,7 @@ modules:
   consumer:
     - key: pieges-c3-consumer
       queue: pieges-c3
-      resolver:
-        function: c3-consumer
-        method: consume
+      function: c3-consumer
 
   scheduledTrigger:
     - key: pieges-daily

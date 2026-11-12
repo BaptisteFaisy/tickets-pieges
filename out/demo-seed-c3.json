@@ -1,0 +1,24 @@
+{
+  "site": "one-atlas-cndz.atlassian.net",
+  "serviceDeskId": "11",
+  "requestTypeId": "142",
+  "language": "fr",
+  "requests": [
+    {
+      "sampleId": "fr-11-reformulee",
+      "issueKey": "SECOPS-203",
+      "issueId": "66693",
+      "gesture": "portail-client",
+      "expected": {
+        "trustLevel": "T1",
+        "suspicion": "review",
+        "kinds": [
+          "model-verdict"
+        ]
+      },
+      "comments": 0,
+      "divergences": [],
+      "seededAt": "2026-11-12T15:27:42Z"
+    }
+  ]
+}
