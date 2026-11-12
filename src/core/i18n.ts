@@ -21,6 +21,7 @@ import { originCatalog } from './catalog/origin';
 import { outboundCatalog } from './catalog/outbound';
 import { outboundOpsCatalog } from './catalog/outbound-ops';
 import { pressureCatalog } from './catalog/pressure';
+import { reglagesCatalog } from './catalog/reglages';
 import { sessionCatalog } from './catalog/session';
 import { uiCatalog } from './catalog/ui';
 import type { Language } from './types';
@@ -33,6 +34,7 @@ const CATALOGS = [
   detectionC4Catalog,
   expositionCatalog,
   pressureCatalog,
+  reglagesCatalog,
   framingCatalog,
   outboundCatalog,
   outboundOpsCatalog,
