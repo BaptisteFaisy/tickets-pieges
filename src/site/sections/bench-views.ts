@@ -8,9 +8,10 @@
 
 import type { CorpusEntry, CorpusStats } from '../../bench/corpus';
 import { benchGapLines } from '../../bench/detector';
-import { noisiestRules, type Confusion, type CorpusMetrics } from '../../bench/metrics';
+import type { MutationId, RobustnessReport } from '../../bench/fuzz';
+import { noisiestRules, round, type Confusion, type CorpusMetrics } from '../../bench/metrics';
 import type { Language, LayerHit } from '../../core/types';
-import { badge, details, heading, kv, list, note, pre, table } from '../dom';
+import { badge, code, details, heading, kv, list, note, pre, table } from '../dom';
 
 /** Tronque un texte pour une option ou une cellule (jamais de HTML brut). */
 export function snippet(text: string, max = 60): string {
@@ -153,4 +154,67 @@ export function metricsView(metrics: CorpusMetrics, lang: Language): string {
     noisiestBlock(metrics, lang) +
     rulesTable(metrics, lang) +
     details(fr ? 'Honnêteté : manques et trous (§21)' : 'Honesty: misses and gaps (§21)', honestyList(metrics, lang));
+}
+
+/** Mutant qui casse la détection, avec ses textes avant/après (modèle de vue). */
+export interface BrokenExample {
+  readonly mutation: MutationId;
+  readonly entryId: string;
+  readonly before: string;
+  /** Segments du mutant : un seul, sauf pour `segment-split`. */
+  readonly after: readonly string[];
+}
+
+/** Libellé bilingue des cinq mutations du brief (#16). */
+export function mutationLabel(mutation: MutationId, lang: Language): string {
+  const labels: Record<MutationId, [string, string]> = {
+    'invisible-insert': ['Caractère invisible inséré', 'Invisible character inserted'],
+    'word-split': ['Mot coupé en deux', 'Word split in two'],
+    'synonym-swap': ['Mot-clé remplacé par un synonyme', 'Keyword replaced by a synonym'],
+    'case-shift': ['Casse modifiée', 'Case shifted'],
+    'segment-split': ['Texte découpé en segments', 'Text split into segments'],
+  };
+  const pair = labels[mutation];
+  return lang === 'fr' ? pair[0] : pair[1];
+}
+
+/** Tableau des cinq mutations : mutants joués, cassures, robustesse. */
+export function mutationsTable(report: RobustnessReport, lang: Language): string {
+  const head = lang === 'fr'
+    ? ['Mutation', 'Mutants', 'Cassures', 'Survivants', 'Robustesse']
+    : ['Mutation', 'Mutants', 'Broken', 'Survived', 'Robustness'];
+  const rows = report.byMutation.map((score) => [
+    `${mutationLabel(score.mutation, lang)} (${score.mutation})`,
+    String(score.total),
+    String(score.broken),
+    String(score.survived),
+    pct(score.robustness, lang),
+  ]);
+  return table(head, rows);
+}
+
+/** Un exemple avant/après : texte d'origine, puis chaque segment muté. */
+function exampleBlock(example: BrokenExample, lang: Language): string {
+  const after = example.after.map((segment) => pre(segment)).join('');
+  return `<div class="block">${badge(mutationLabel(example.mutation, lang), 'warn')} ${code(example.entryId)}` +
+    `${pre(example.before)}${note(lang === 'fr' ? 'Après mutation :' : 'After mutation:')}${after}</div>`;
+}
+
+/** Bloc fuzzing : taux de cassure, tableau des mutations, exemples avant/après. */
+export function fuzzView(report: RobustnessReport, examples: readonly BrokenExample[], lang: Language): string {
+  const fr = lang === 'fr';
+  const breakRate = report.robustness === null ? null : round(1 - report.robustness);
+  const summary = kv([
+    [fr ? 'Mutants mesurés' : 'Measured mutants', String(report.total)],
+    [fr ? 'Mutants qui cassent la détection' : 'Mutants breaking the detection', String(report.broken)],
+    [fr ? 'Taux de cassure' : 'Break rate', pct(breakRate, lang)],
+    [fr ? 'Robustesse globale' : 'Overall robustness', pct(report.robustness, lang)],
+  ]);
+  const blocks = examples.length === 0
+    ? note(fr ? 'Aucune cassure sur ce filtre : rien à montrer.' : 'No break on this filter: nothing to show.')
+    : examples.map((example) => exampleBlock(example, lang)).join('');
+  return heading(fr ? 'Fuzzing — les cinq mutations (#16)' : 'Fuzzing — the five mutations (#16)') +
+    summary +
+    mutationsTable(report, lang) +
+    details(fr ? 'Exemples avant/après (une cassure par mutation)' : 'Before/after examples (one break per mutation)', blocks, true);
 }

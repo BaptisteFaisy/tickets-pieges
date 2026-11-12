@@ -11,11 +11,25 @@
 
 import { corpusStats, type CorpusEntry } from '../../bench/corpus';
 import { createDetector, detectEntry } from '../../bench/detector';
+import { measureRobustness, mutateEntry, type MutationId, type MutationOptions, type RobustnessReport } from '../../bench/fuzz';
 import { measureCorpus, type CorpusMetrics } from '../../bench/metrics';
 import { byId, buttonHtml, field, grid, heading, note, panel, selectHtml, valueOf } from '../dom';
 import { familyKeys, filterEntries, fullCorpus, PLAYED_CAP, playedEntries } from './bench-corpus';
-import { corpusOptions, entryView, filterOptions, gapsView, headerView, metricsView } from './bench-views';
+import {
+  corpusOptions,
+  entryView,
+  filterOptions,
+  fuzzView,
+  gapsView,
+  headerView,
+  metricsView,
+  type BrokenExample,
+} from './bench-views';
 import type { Section, SectionContext } from './types';
+
+/** Graine et plafond du fuzzing dans la page : déterministe et rapide. */
+const FUZZ_SEED = 1;
+const FUZZ_MAX_PER_ENTRY = 3;
 
 /** Textes visibles de la section, dans les deux langues (règle 9 du brief). */
 const TEXTS = {
@@ -42,6 +56,28 @@ function text(ctx: SectionContext, key: keyof typeof TEXTS): string {
 export interface BenchRun {
   readonly played: number;
   readonly metrics: CorpusMetrics;
+  readonly robustness: RobustnessReport;
+  readonly examples: readonly BrokenExample[];
+}
+
+/** Premier exemple avant/après par mutation, parmi les mutants qui cassent. */
+export function brokenExamples(
+  entries: readonly CorpusEntry[],
+  report: RobustnessReport,
+  options: MutationOptions,
+): BrokenExample[] {
+  const byEntryId = new Map(entries.map((entry) => [entry.id, entry]));
+  const seen = new Set<MutationId>();
+  const examples: BrokenExample[] = [];
+  for (const outcome of report.outcomes) {
+    if (!outcome.broken || seen.has(outcome.mutation)) continue;
+    const entry = byEntryId.get(outcome.entryId);
+    const mutant = entry ? mutateEntry(entry, options).find((item) => item.id === outcome.mutantId) : undefined;
+    if (!entry || !mutant) continue;
+    seen.add(outcome.mutation);
+    examples.push({ mutation: outcome.mutation, entryId: entry.id, before: entry.text, after: mutant.segments });
+  }
+  return examples;
 }
 
 /**
@@ -50,7 +86,14 @@ export interface BenchRun {
  */
 export function playBench(entries: readonly CorpusEntry[]): BenchRun {
   const detect = createDetector();
-  return { played: entries.length, metrics: measureCorpus(entries, detect) };
+  const fuzzOptions: MutationOptions = { seed: FUZZ_SEED, maxPerEntry: FUZZ_MAX_PER_ENTRY };
+  const robustness = measureRobustness(entries, detect, fuzzOptions);
+  return {
+    played: entries.length,
+    metrics: measureCorpus(entries, detect),
+    robustness,
+    examples: brokenExamples(entries, robustness, fuzzOptions),
+  };
 }
 
 /** Remplit une liste déroulante sans HTML brut (`textContent` : jamais injecté). */
@@ -102,7 +145,8 @@ function run(root: HTMLElement, ctx: SectionContext): void {
   target.innerHTML =
     headerView(corpusStats(fullCorpus()), outcome.played, PLAYED_CAP, elapsed, ctx.lang) +
     gapsView(ctx.lang) +
-    metricsView(outcome.metrics, ctx.lang);
+    metricsView(outcome.metrics, ctx.lang) +
+    fuzzView(outcome.robustness, outcome.examples, ctx.lang);
 }
 
 /** Formulaire : filtres du corpus, entrée navigable, bouton de rejeu. */
