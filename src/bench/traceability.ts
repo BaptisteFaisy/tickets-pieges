@@ -156,8 +156,8 @@ export function describeGap(view: GapView): string {
   if (view.missingTests.length > 0) {
     parts.push(`test(s) absent(s) : ${view.missingTests.join(', ')}`);
   }
-  if (parts.length === 0 && view.modules.length === 0) parts.push('aucun module cité');
-  if (parts.length === 0 && view.tests.length === 0) parts.push('aucun test cité');
+  if (view.modules.length === 0) parts.push('aucun module cité');
+  if (view.tests.length === 0) parts.push('aucun test cité');
   if (view.reste) parts.push(view.reste);
   return parts.join(' ; ');
 }
@@ -168,7 +168,10 @@ export function verifyRequirement(requirement: RequirementRef, exists: PathOracl
   const tests = requirement.tests.filter(exists);
   const missingModules = requirement.modules.filter((path) => !exists(path));
   const missingTests = requirement.tests.filter((path) => !exists(path));
-  const status: RequirementStatus = missingModules.length > 0 || missingTests.length > 0 ? 'trou' : 'couvert';
+  const sansModule = modules.length === 0;
+  const sansTest = tests.length === 0;
+  const status: RequirementStatus =
+    missingModules.length > 0 || missingTests.length > 0 || sansModule || sansTest ? 'trou' : 'couvert';
   const base = {
     id: requirement.id,
     title: requirement.title,
