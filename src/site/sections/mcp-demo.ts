@@ -159,6 +159,23 @@ export async function callTool(tool: string, payload: Record<string, unknown>): 
   return call(payload);
 }
 
+// ---------------------------------------------------- preuve par les compteurs
+
+/** Nombre total de lignes du store : la grandeur que la preuve « GET » suit. */
+export function countsTotal(counts: Record<string, number>): number {
+  return Object.values(counts).reduce((sum, value) => sum + value, 0);
+}
+
+/** Tiroirs dont le compte a bougé entre deux relevés : [tiroir, avant, après]. */
+export function countsDelta(
+  before: Record<string, number>,
+  after: Record<string, number>,
+): [string, number, number][] {
+  return Object.keys(after)
+    .filter((key) => (after[key] ?? 0) !== (before[key] ?? 0))
+    .map((key) => [key, before[key] ?? 0, after[key] ?? 0]);
+}
+
 // ------------------------------------------------------------ entrées d'appel
 
 /** Un champ d'entrée d'outil : libellé bilingue, contrôle, valeur par défaut. */

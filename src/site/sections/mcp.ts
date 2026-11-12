@@ -28,6 +28,7 @@ import {
 } from '../dom';
 import {
   callTool,
+  countsDelta,
   fieldsHtml,
   humanLines,
   prepare,
@@ -70,6 +71,23 @@ const LABELS = {
   internalNote: { fr: 'note interne (jamais publique)', en: 'internal note (never public)' },
   finding: { fr: 'constat journalisé', en: 'journaled finding' },
   seeded: { fr: 'Demandes analysées, semées dans la session : ', en: 'Analysed requests seeded in the session: ' },
+  proof: {
+    fr: 'Preuve par les compteurs : ce que l’appel a écrit dans le store de session',
+    en: 'Counter proof: what the call wrote to the session store',
+  },
+  noWrite: {
+    fr: 'Verbe GET : 0 ligne écrite — le store est strictement identique avant et après l’appel.',
+    en: 'GET verb: 0 rows written — the store is strictly identical before and after the call.',
+  },
+  drawer: { fr: 'Tiroir', en: 'Drawer' },
+  before: { fr: 'Avant', en: 'Before' },
+  after: { fr: 'Après', en: 'After' },
+  delta: { fr: 'Écart', en: 'Delta' },
+  notesProof: {
+    fr: 'Note interne enregistrée par le port local : ',
+    en: 'Internal note recorded by the local port: ',
+  },
+  publicProof: { fr: ' — commentaire public : ', en: ' — public comment: ' },
   hint: {
     fr: 'Tout se calcule dans votre navigateur : aucun appel réseau, rien ne quitte la page.',
     en: 'Everything runs in your browser: no network call, nothing leaves this page.',
@@ -103,9 +121,40 @@ export function resultBlock(tool: string, result: ToolResult<unknown>, ctx: Sect
     ${details(label(ctx, 'raw'), pre(rawJson(result)), true)}`;
 }
 
+/** Ligne de preuve du §10 : notes internes enregistrées, commentaires publics zéro. */
+function notesProof(demo: McpDemo, ctx: SectionContext): string {
+  return note(`${label(ctx, 'notesProof')}${demo.notes.length}${label(ctx, 'publicProof')}${demo.publicComments.length}`);
+}
+
+/**
+ * Preuve par les compteurs (`store.counts()`) : un `GET` ne bouge aucune ligne ;
+ * `propose-public-reply` écrit un brouillon, une sortie et le journal — et la
+ * note reste interne (le compteur de commentaires publics ne bouge jamais).
+ */
+export function proofBlock(
+  tool: string,
+  before: Record<string, number>,
+  after: Record<string, number>,
+  demo: McpDemo,
+  ctx: SectionContext,
+): string {
+  const head = heading(label(ctx, 'proof'));
+  const delta = countsDelta(before, after);
+  if (delta.length === 0) {
+    return `${head}${badge(label(ctx, 'noWrite'), 'ok')}${notesProof(demo, ctx)}`;
+  }
+  const rows = delta.map(([drawer, was, is]) => [drawer, String(was), String(is), `+${is - was}`]);
+  const wrote = TOOL_VERBS[tool] === 'CREATE'
+    ? badge(ctx.lang === 'fr' ? 'verbe CREATE : écriture tracée' : 'CREATE verb: journaled write', 'review')
+    : badge(label(ctx, 'noWrite'), 'ok');
+  return `${head}${wrote}${table(
+    [label(ctx, 'drawer'), label(ctx, 'before'), label(ctx, 'after'), label(ctx, 'delta')],
+    rows,
+  )}${notesProof(demo, ctx)}`;
+}
+
 /** Les dix outils, leur verbe et leur effet — le tableau que le §16 garantit. */
-export function toolsTable(ctx: SectionContext): string {
-  const rows = Object.keys(MCP_TOOLS).map((key) => {
+export function toolsTable(ctx: SectionContext): string {  const rows = Object.keys(MCP_TOOLS).map((key) => {
     const verb = TOOL_VERBS[key] ?? '?';
     let effect = label(ctx, 'none');
     if (key === 'propose-public-reply') effect = label(ctx, 'internalNote');
@@ -140,8 +189,10 @@ function wire(root: HTMLElement, ctx: SectionContext): void {
       const target = byId<HTMLDivElement>(root, 'm-result');
       const tool = select?.value ?? FIRST_TOOL;
       if (!target) return;
+      const before = ctx.store.counts();
       void callTool(tool, readPayload(root, tool)).then((result) => {
-        target.innerHTML = resultBlock(tool, result, ctx);
+        const after = ctx.store.counts();
+        target.innerHTML = `${resultBlock(tool, result, ctx)}${proofBlock(tool, before, after, demo, ctx)}`;
       });
     });
   });
@@ -154,8 +205,13 @@ function wire(root: HTMLElement, ctx: SectionContext): void {
  */
 async function render(ctx: SectionContext): Promise<string> {
   const demo = await prepare(ctx);
+  const before = ctx.store.counts();
   const result = await callTool(FIRST_TOOL, { issueKey: demo.issueKey });
-  const right = panel(resultBlock(FIRST_TOOL, result, ctx), 'm-result');
+  const after = ctx.store.counts();
+  const right = panel(
+    `${resultBlock(FIRST_TOOL, result, ctx)}${proofBlock(FIRST_TOOL, before, after, demo, ctx)}`,
+    'm-result',
+  );
   return panel(`${grid(controls(ctx, demo), right)}${toolsTable(ctx)}`);
 }
 
