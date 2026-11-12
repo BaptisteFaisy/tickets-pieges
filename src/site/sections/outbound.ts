@@ -1,5 +1,8 @@
 import type { DlpFinding } from '../../core/dlp';
 import { createDraft, decidePublication } from '../../core/drafts';
+import { checkNotification } from '../../core/outbound-notify';
+import { countForAgent, createRateState, PUBLIC_REPLY_HOURLY_LIMIT, recordPublicReply } from '../../core/outbound-rate';
+import type { RateDecision, RateState } from '../../core/outbound-rate';
 import { checkOutbound, outboundCaveats } from '../../core/outbound';
 import type { OutboundDlpResult } from '../../core/outbound';
 import type { Language, OutboundAction, OutboundContext, OutboundHit } from '../../core/types';
@@ -58,6 +61,16 @@ const FR = {
   draftAuthor: 'Auteur',
   internal: 'note interne',
   public: 'commentaire public',
+  rateH: 'Débit de réponses publiques',
+  rateCount: 'Réponses dans la dernière heure',
+  rateLimit: 'Limite horaire',
+  rateAllowed: 'Débit acceptable',
+  delay: 'Délai avant contrôle (s)',
+  delay0: 'immédiat',
+  notifyH: 'Courriel de notification',
+  notifyWindow: 'Fenêtre d’exposition',
+  notifyLeft: 'Le courriel est peut-être déjà parti',
+  notifyWithin: 'Contrôle dans la cible de 60 s',
 } as const;
 
 type TKey = keyof typeof FR;
@@ -111,6 +124,16 @@ const EN: Record<TKey, string> = {
   draftAuthor: 'Author',
   internal: 'internal note',
   public: 'public comment',
+  rateH: 'Public reply rate',
+  rateCount: 'Replies in the last hour',
+  rateLimit: 'Hourly limit',
+  rateAllowed: 'Rate acceptable',
+  delay: 'Delay before control (s)',
+  delay0: 'immediate',
+  notifyH: 'Notification email',
+  notifyWindow: 'Exposure window',
+  notifyLeft: 'The email may already have left',
+  notifyWithin: 'Control within the 60 s target',
 };
 
 const TEXT: Record<Language, Record<TKey, string>> = { fr: FR, en: EN };
@@ -192,6 +215,7 @@ function formHtml(lang: Language): string {
     field(tr(lang, 'keys'), textareaHtml('ob-keys', 2, 'GLOBEX-12', 'GLOBEX-12')),
     field(tr(lang, 'urls'), textareaHtml('ob-urls', 3, 'https://acme-support.example.com', 'https://acme-support.example.com')),
     field(tr(lang, 'humanReview'), yesNoSelect(lang, 'ob-review', false)),
+    field(tr(lang, 'delay'), selectHtml('ob-delay', [['0', tr(lang, 'delay0')], ['45', '45 s'], ['90', '90 s'], ['300', '300 s']], '90')),
     buttonHtml('ob-run', tr(lang, 'run')),
   ];
   return controls.join('');
@@ -235,6 +259,35 @@ function redactionHtml(lang: Language, v: OutboundDlpResult): string {
   ].join('');
 }
 
+function rateHtml(lang: Language, decision: RateDecision): string {
+  return kv([
+    [tr(lang, 'rateCount'), String(decision.count)],
+    [tr(lang, 'rateLimit'), String(PUBLIC_REPLY_HOURLY_LIMIT)],
+    [tr(lang, 'rateAllowed'), decision.allowed ? tr(lang, 'yes') : tr(lang, 'no')],
+  ]) + (decision.message ? note(decision.message) : '');
+}
+
+function notifyHtml(lang: Language, text: string, context: OutboundContext, commentedAt: string, delaySeconds: number): string {
+  const checkedAt = isoPlusSeconds(commentedAt, delaySeconds);
+  const check = checkNotification(text, context, commentedAt, checkedAt, lang);
+  const seconds = check.window.measured ? `${Math.round(check.window.delayMs / 1000)} s` : '?';
+  return [
+    kv([
+      [tr(lang, 'notifyWindow'), seconds],
+      [tr(lang, 'notifyWithin'), check.window.withinTarget ? tr(lang, 'yes') : tr(lang, 'no')],
+      [tr(lang, 'notifyLeft'), check.window.notificationMayHaveLeft ? tr(lang, 'yes') : tr(lang, 'no')],
+    ]),
+    note(check.announcement),
+  ].join('');
+}
+
+/** Instant décalé, calculé depuis `ctx.now` uniquement (jamais l’heure système). */
+function isoPlusSeconds(iso: string, seconds: number): string {
+  const base = Date.parse(iso);
+  if (!Number.isFinite(base)) return iso;
+  return new Date(base + seconds * 1000).toISOString();
+}
+
 function draftHtml(lang: Language, text: string, v: OutboundDlpResult, humanReviewed: boolean, now: string): string {
   const draft = createDraft({
     id: `draft-${v.issueKey}`,
@@ -258,7 +311,16 @@ function draftHtml(lang: Language, text: string, v: OutboundDlpResult, humanRevi
   ].join('');
 }
 
-function runHtml(lang: Language, text: string, v: OutboundDlpResult, context: OutboundContext, humanReviewed: boolean, now: string): string {
+function runHtml(
+  lang: Language,
+  text: string,
+  v: OutboundDlpResult,
+  context: OutboundContext,
+  humanReviewed: boolean,
+  now: string,
+  rate: RateDecision,
+  delaySeconds: number,
+): string {
   return [
     heading(tr(lang, 'result')),
     verdictHtml(lang, v),
@@ -270,6 +332,10 @@ function runHtml(lang: Language, text: string, v: OutboundDlpResult, context: Ou
     redactionHtml(lang, v),
     heading(tr(lang, 'draftH')),
     draftHtml(lang, text, v, humanReviewed, now),
+    heading(tr(lang, 'rateH')),
+    rateHtml(lang, rate),
+    heading(tr(lang, 'notifyH')),
+    notifyHtml(lang, text, context, now, delaySeconds),
     caveatsHtml(lang, context),
   ].join('');
 }
@@ -283,13 +349,19 @@ function render(ctx: SectionContext): string {
 
 function mount(root: HTMLElement, ctx: SectionContext): void {
   const lang = ctx.lang;
+  let rateState: RateState = createRateState();
   byId<HTMLButtonElement>(root, 'ob-run')?.addEventListener('click', () => {
     const text = valueOf(root, 'ob-text');
     const humanReviewed = valueOf(root, 'ob-review') === 'yes';
+    const delaySeconds = Number.parseInt(valueOf(root, 'ob-delay'), 10) || 0;
     const { context, stage } = readContext(root, lang);
     const verdict = checkOutbound(text, context, { stage, language: lang, now: ctx.now });
+    const recorded = verdict.allowed
+      ? recordPublicReply(rateState, 'agent-demo', ctx.now, lang)
+      : { state: rateState, decision: { allowed: true, count: countForAgent(rateState, 'agent-demo', ctx.now), alert: false, message: null } };
+    rateState = recorded.state;
     const out = byId<HTMLElement>(root, 'ob-result');
-    if (out) out.innerHTML = runHtml(lang, text, verdict, context, humanReviewed, ctx.now);
+    if (out) out.innerHTML = runHtml(lang, text, verdict, context, humanReviewed, ctx.now, recorded.decision, delaySeconds);
   });
 }
 
