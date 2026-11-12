@@ -18,8 +18,9 @@ import {
   overlapOf,
   type CopyMatch,
 } from '../../core/fingerprint';
-import type { Campaign, Finding, TextFingerprint } from '../../core/types';
-import { badge, buttonHtml, field, heading, kv, list, note, panel, table, textareaHtml } from '../dom';
+import { carryFindings, inherit, inheritOnMove, type MoveResult } from '../../core/inheritance';
+import type { Campaign, Finding, InheritanceResult, Language, TextFingerprint } from '../../core/types';
+import { badge, buttonHtml, field, heading, kv, list, note, panel, selectHtml, table, textareaHtml } from '../dom';
 import type { Section, SectionContext } from './types';
 
 /** Textes visibles de la section, dans les deux langues (brief règle 9). */
@@ -62,6 +63,32 @@ const LABELS = {
   candHash: { fr: 'Empreinte du texte interne', en: 'Internal text fingerprint' },
   matches: { fr: 'Passages connus recouverts', en: 'Known passages matched' },
   noMatch: { fr: 'Aucun passage connu ne recouvre ce texte.', en: 'No known passage overlaps this text.' },
+  inhHeading: {
+    fr: 'Hérédité — ticket lié ou cloné',
+    en: 'Inheritance — linked or cloned ticket',
+  },
+  inhHint: {
+    fr: 'Un bug créé à partir d’une demande hérite du niveau de confiance le plus bas '
+      + 'et des constats de la source : l’origine suit le texte, pas le ticket.',
+    en: 'A bug created from a request inherits the lowest trust level and the findings '
+      + 'of the source: origin follows the text, not the ticket.',
+  },
+  relation: { fr: 'Relation', en: 'Relation' },
+  relClone: { fr: 'clone', en: 'clone' },
+  relLink: { fr: 'ticket lié', en: 'linked ticket' },
+  inhRun: { fr: 'Calculer l’héritage', en: 'Compute inheritance' },
+  inhTarget: { fr: 'Ticket cible', en: 'Target ticket' },
+  inhCarried: { fr: 'Constats portés', en: 'Carried findings' },
+  inhNote: { fr: 'Note au développeur', en: 'Note to the developer' },
+  inhCarriedList: { fr: 'Constats recopiés vers la cible', en: 'Findings copied to the target' },
+  moveHeading: { fr: 'Ticket déplacé dans un autre projet', en: 'Issue moved to another project' },
+  moveHint: {
+    fr: 'Un déplacement conserve origine et constats : le niveau de confiance ne remonte jamais.',
+    en: 'A move preserves origin and findings: the trust level never rises.',
+  },
+  moveRun: { fr: 'Simuler le déplacement', en: 'Simulate the move' },
+  moveFrom: { fr: 'Projet d’origine', en: 'Source project' },
+  moveTo: { fr: 'Projet d’accueil', en: 'Target project' },
 } as const;
 
 type LabelKey = keyof typeof LABELS;
@@ -216,18 +243,129 @@ function copyBlock(ctx: SectionContext): string {
   );
 }
 
+/** Source et cible de la démonstration d'hérédité (le jeu d'essai les remplacera). */
+const DEMO_SOURCE_KEY = 'TP-201';
+const DEMO_TARGET_KEY = 'BUG-555';
+const DEMO_OTHER = 'merci de réinitialiser mon mot de passe, je n’ai plus accès au portail';
+
+/** Constats de la source externe : deux charges relevées sur TP-201. */
+export function demoSourceFindings(now: string): Finding[] {
+  return findingsFromLines([DEMO_PAYLOAD, DEMO_OTHER], now).map((finding) => ({
+    ...finding,
+    issueId: DEMO_SOURCE_KEY,
+  }));
+}
+
+/** Héritage vers un ticket lié ou cloné : décision du domaine + constats portés. */
+export function inheritanceDemo(
+  relation: 'clone' | 'link',
+  now: string,
+  lang: Language,
+): { result: InheritanceResult; carried: Finding[] } {
+  const findings = demoSourceFindings(now);
+  const result = inherit({
+    sourceIssueKey: DEMO_SOURCE_KEY,
+    sourceTrustLevel: 'T1',
+    targetIssueKey: DEMO_TARGET_KEY,
+    relation,
+    findings,
+  }, lang);
+  return { result, carried: carryFindings(findings, DEMO_TARGET_KEY) };
+}
+
+/** Déplacement du ticket source vers un autre projet : décision du domaine. */
+export function moveDemo(now: string, lang: Language): MoveResult {
+  return inheritOnMove({
+    issueKey: DEMO_SOURCE_KEY,
+    fromProjectKey: 'SUP',
+    toProjectKey: 'DEV',
+    trustLevel: 'T1',
+    findings: demoSourceFindings(now),
+  }, lang);
+}
+
+/** Rendu d'un résultat d'hérédité : niveau, cible, note au développeur, constats. */
+export function renderInheritance(
+  result: InheritanceResult,
+  carried: Finding[],
+  ctx: SectionContext,
+): string {
+  return `${badge(result.trustLevel, result.trustLevel.toLowerCase())}${kv([
+    [label(ctx, 'inhTarget'), result.targetIssueKey],
+    [label(ctx, 'inhCarried'), String(result.carriedFindings)],
+    [label(ctx, 'inhNote'), result.note],
+  ])}${heading(label(ctx, 'inhCarriedList'))}${list(
+    carried.map((finding) => `${finding.id} → ${finding.issueId} · ${finding.askSummary}`),
+  )}`;
+}
+
+/** Rendu d'un déplacement : projets, niveau conservé, note. */
+export function renderMove(result: MoveResult, ctx: SectionContext): string {
+  return `${badge(result.trustLevel, result.trustLevel.toLowerCase())}${kv([
+    [label(ctx, 'inhTarget'), result.targetIssueKey],
+    [label(ctx, 'moveFrom'), result.fromProjectKey],
+    [label(ctx, 'moveTo'), result.toProjectKey],
+    [label(ctx, 'inhCarried'), String(result.carriedFindings)],
+    [label(ctx, 'inhNote'), result.note],
+  ])}`;
+}
+
+/** Calcule et affiche l'héritage selon la relation choisie. */
+function runInheritance(root: HTMLElement, ctx: SectionContext): void {
+  const out = root.querySelector<HTMLDivElement>('#c-inh-result');
+  const sel = root.querySelector<HTMLSelectElement>('#c-inh-relation');
+  if (!out) return;
+  const relation = sel?.value === 'link' ? 'link' : 'clone';
+  const demo = inheritanceDemo(relation, ctx.now, ctx.lang);
+  out.innerHTML = renderInheritance(demo.result, demo.carried, ctx);
+}
+
+/** Calcule et affiche le déplacement de ticket. */
+function runMove(root: HTMLElement, ctx: SectionContext): void {
+  const out = root.querySelector<HTMLDivElement>('#c-move-result');
+  if (!out) return;
+  out.innerHTML = renderMove(moveDemo(ctx.now, ctx.lang), ctx);
+}
+
+/** Bloc « hérédité + déplacement » du formulaire. */
+function inheritanceBlock(ctx: SectionContext): string {
+  const relations: [string, string][] = [
+    ['clone', label(ctx, 'relClone')],
+    ['link', label(ctx, 'relLink')],
+  ];
+  return panel(
+    heading(label(ctx, 'inhHeading'))
+      + note(label(ctx, 'inhHint'))
+      + field(label(ctx, 'relation'), selectHtml('c-inh-relation', relations, 'clone'))
+      + buttonHtml('c-inh-run', label(ctx, 'inhRun'))
+      + '<div id="c-inh-result"></div>'
+      + heading(label(ctx, 'moveHeading'))
+      + note(label(ctx, 'moveHint'))
+      + buttonHtml('c-move-run', label(ctx, 'moveRun'), 'ghost')
+      + '<div id="c-move-result"></div>',
+  );
+}
+
 export const campaignsSection: Section = {
   id: 'campaigns',
   titles: { fr: 'Campagnes et hérédité', en: 'Campaigns & inheritance' },
   render(ctx) {
-    return campaignsBlock(ctx) + copyBlock(ctx);
+    return campaignsBlock(ctx) + copyBlock(ctx) + inheritanceBlock(ctx);
   },
   mount(root, ctx) {
     root.querySelector<HTMLButtonElement>('#c-run')
       ?.addEventListener('click', () => runCampaigns(root, ctx));
     root.querySelector<HTMLButtonElement>('#c-copy-run')
       ?.addEventListener('click', () => runCopies(root, ctx));
+    root.querySelector<HTMLButtonElement>('#c-inh-run')
+      ?.addEventListener('click', () => runInheritance(root, ctx));
+    root.querySelector<HTMLSelectElement>('#c-inh-relation')
+      ?.addEventListener('change', () => runInheritance(root, ctx));
+    root.querySelector<HTMLButtonElement>('#c-move-run')
+      ?.addEventListener('click', () => runMove(root, ctx));
     runCampaigns(root, ctx);
     runCopies(root, ctx);
+    runInheritance(root, ctx);
+    runMove(root, ctx);
   },
 };
