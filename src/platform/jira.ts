@@ -62,7 +62,15 @@ function asRecord(value: unknown): Json {
 }
 
 async function requestJson(path: string, init?: { method?: string; body?: string }): Promise<unknown> {
-  const response = await api.asApp().requestJira(assumeTrustedRoute(path), init);
+  // `Content-Type: application/json` est **obligatoire** : sans lui, Forge
+  // envoie le corps en `text/plain` et Jira répond 415 « Unsupported Media Type »
+  // (mesuré sur site réel le 12 novembre 2026, à l'écriture de la propriété
+  // indexée). Le type est aussi dans le type de `init` pour que les appels
+  // futureurs n'oublient pas l'en-tête.
+  const withHeaders = init?.body
+    ? { ...init, headers: { 'Content-Type': 'application/json' } }
+    : init;
+  const response = await api.asApp().requestJira(assumeTrustedRoute(path), withHeaders);
   if (!response.ok) {
     throw new Error(`Jira REST ${response.status} sur ${path}`);
   }
@@ -247,9 +255,12 @@ export function createJiraPort(deps: JiraPortDeps = {}): JiraPort {
       journal('segment-text-replaced', issueKey, { field, refId });
     },
     async setEntityProperty(issueKey, key, value) {
+      // L'API « properties » de Jira attend la valeur **enveloppée** dans
+      // `value` : envoyer l'objet nu est refusé (mesuré sur site le
+      // 12 novembre 2026).
       await requestJson(`${issuePath(issueKey)}/properties/${encodeURIComponent(key)}`, {
         method: 'PUT',
-        body: JSON.stringify(value),
+        body: JSON.stringify({ value }),
       });
     },
     async addLabel(issueKey, label) {

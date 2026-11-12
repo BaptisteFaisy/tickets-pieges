@@ -65,6 +65,22 @@
       "comments": 0,
       "divergences": [],
       "seededAt": "2026-11-12T14:19:05Z"
+    },
+    {
+      "sampleId": "fr-07-assistant",
+      "issueKey": "SECOPS-169",
+      "issueId": "66659",
+      "gesture": "portail-client",
+      "expected": {
+        "trustLevel": "T1",
+        "suspicion": "suspect",
+        "kinds": [
+          "assistant-addressing"
+        ]
+      },
+      "comments": 0,
+      "divergences": [],
+      "seededAt": "2026-11-12T14:34:10Z"
     }
   ]
 }

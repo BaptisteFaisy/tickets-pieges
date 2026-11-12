@@ -358,7 +358,11 @@ export function eventPageId(payload: unknown): string | null {
 /** Invoker de production : `requestConfluence` en tant qu'app, route de confiance. */
 export function createConfluenceInvoker(): ConfluenceInvoker {
   return async (path, init) => {
-    const response = await api.asApp().requestConfluence(assumeTrustedRoute(path), init);
+    // Même règle que sur Jira : sans `Content-Type: application/json`, Forge
+    // envoie le corps en `text/plain` et Confluence répond 415 (mesuré sur site
+    // réel le 12 novembre 2026).
+    const withHeaders = init?.body ? { ...init, headers: { 'Content-Type': 'application/json' } } : init;
+    const response = await api.asApp().requestConfluence(assumeTrustedRoute(path), withHeaders);
     if (!response.ok) {
       throw new Error(`Confluence REST ${response.status} sur ${path}`);
     }

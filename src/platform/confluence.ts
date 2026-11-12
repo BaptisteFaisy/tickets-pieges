@@ -320,7 +320,9 @@ function portWriters(
       await invoker(contentPath(pageId), { method: 'PUT', body: payload });
     },
     async setProperty(pageId, key, value) {
-      await invoker(propertyPath(pageId, key), { method: 'PUT', body: JSON.stringify(value) });
+      // Comme pour Jira, l'API « properties » attend la valeur enveloppée
+      // dans `value` (mesuré sur site le 12 novembre 2026).
+      await invoker(propertyPath(pageId, key), { method: 'PUT', body: JSON.stringify({ value }) });
     },
     async addLabel(pageId, name) {
       await invoker(`${contentPath(pageId)}/label`, {
