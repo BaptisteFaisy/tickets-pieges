@@ -37,6 +37,7 @@ import {
 import { createSqlStore, ensureSchema } from '../platform/db';
 import { forgeModelPort } from '../platform/llm';
 import type { Clock, JiraIssueView, JiraPort, ModelPort, Store } from '../platform/schema';
+import { isSelfEcho, SELF_WRITE_LOOKBACK } from '../core/self-write';
 import { scanIssue, type ScanResult } from './pipeline';
 import { enqueueC3, systemClock } from './support';
 
@@ -382,9 +383,28 @@ export async function createConfluenceForgeDeps(): Promise<ConfluenceDeps> {
  * `updated:page`, `created:comment`, `updated:comment`) : lire l'identifiant de
  * la page, lancer le pipeline, rien d'autre — le glue le plus mince possible.
  */
+/**
+ * Une de nos écritures vient-elle de provoquer cet événement ?
+ *
+ * Confluence n'a pas de filtre `ignoreSelf` (réservé aux événements Jira, mesuré
+ * par `forge lint`) : la garde est donc dans le code, et elle s'appuie sur le
+ * journal que l'app tient déjà (§18, étape 5).
+ */
+export async function isSelfEchoEvent(deps: ConfluenceDeps, pageId: string): Promise<boolean> {
+  const entries = await deps.store.events.list(pageIssueId(pageId), SELF_WRITE_LOOKBACK);
+  return isSelfEcho(
+    entries.map((entry) => ({ kind: entry.kind, at: entry.at })),
+    deps.clock.now(),
+  );
+}
+
 export async function confluenceContentEvent(event: unknown): Promise<void> {
   const pageId = eventPageId(event);
   if (!pageId) return;
   const deps = await createConfluenceForgeDeps();
+  if (await isSelfEchoEvent(deps, pageId)) {
+    await deps.store.events.append('self-echo-ignored', pageIssueId(pageId), { pageId });
+    return;
+  }
   await scanConfluencePage(deps, pageId);
 }

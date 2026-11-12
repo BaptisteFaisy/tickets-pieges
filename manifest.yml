@@ -111,32 +111,26 @@ modules:
       function: issue-link-created
 
     # Pages et commentaires Confluence, y compris rédigés par des invités
-    # (#61, TP-26). `ignoreSelf` : ne pas réanalyser nos propres réécritures
-    # (bandeau, neutralisation).
+    # (#61, TP-26). Pas de filtre `ignoreSelf` ici : la plateforme le réserve aux
+    # événements Jira (`forge lint` : « Trigger filtering with ignoreSelf works
+    # only with Jira events »). La garde anti-écho est dans le code —
+    # `isSelfEchoEvent`, qui lit le journal des écritures de l'app (§18.5).
     - key: pieges-conf-page-created
       events:
         - avi:confluence:created:page
       function: confluence-scan
-      filter:
-        ignoreSelf: true
     - key: pieges-conf-page-updated
       events:
         - avi:confluence:updated:page
       function: confluence-scan
-      filter:
-        ignoreSelf: true
     - key: pieges-conf-comment-created
       events:
         - avi:confluence:created:comment
       function: confluence-scan
-      filter:
-        ignoreSelf: true
     - key: pieges-conf-comment-updated
       events:
         - avi:confluence:updated:comment
       function: confluence-scan
-      filter:
-        ignoreSelf: true
 
   # File d'analyse (couche C3, hors du chemin de l'événement).
   consumer:
@@ -506,6 +500,10 @@ permissions:
     # neutralisé (§8.3) ; commenter via le sas ; propriétés et libellés de page.
     - read:content:confluence
     - write:content:confluence
+    # Exigé par les déclencheurs Confluence (mesuré par `forge lint` :
+    # « Trigger event: 'avi:confluence:created:page' requires
+    # 'read:confluence-content.summary' scope »).
+    - read:confluence-content.summary
     - write:comment:confluence
     - read:space:confluence
     - read:user:confluence
