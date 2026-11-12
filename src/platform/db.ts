@@ -15,6 +15,7 @@
  */
 
 import { sql } from '@forge/sql';
+import { SqlBudget, type BudgetReading } from './budget';
 import type { ProjectSettings } from '../core/types';
 import type {
   CampaignRepo,
@@ -131,15 +132,45 @@ const rawExecutor: SqlExecutor = {
   },
 };
 
-/** Exécuteur gardé : aucune requête ne part avant que le schéma existe. */
+/**
+ * Le budget de l'invocation en cours. Le runtime Forge donne une instance par
+ * invocation : le compteur est donc naturellement par invocation (aucun état
+ * partagé entre deux tickets).
+ */
+let activeBudget: SqlBudget | null = null;
+
+/** Branche le budget de l'invocation (ou `null` pour désarmer le décompte). */
+export function setBudget(budget: SqlBudget | null): void {
+  activeBudget = budget;
+}
+
+/** Le relevé du budget en cours — lu par le diagnostic (`src/core/diagnostic.ts`). */
+export function budgetReading(): BudgetReading | null {
+  return activeBudget ? activeBudget.reading : null;
+}
+
+/**
+ * Exécuteur gardé : aucune requête ne part avant que le schéma existe, et
+ * **chaque requête est comptée**.
+ *
+ * Passé le plafond d'écritures, l'exécution **saute** l'écriture et le budget
+ * le note : le produit continue d'analyser, il ne persiste plus, et il le dit
+ * (le relevé est journalisé à la fin de l'invocation).
+ */
 const executor: SqlExecutor = {
   async rows<T>(q: SqlQuery) {
     await ensureSchema();
+    activeBudget?.countRead();
     return rawExecutor.rows<T>(q);
   },
   async exec(q: SqlQuery) {
     await ensureSchema();
-    return rawExecutor.exec(q);
+    if (activeBudget?.shouldSkipWrite()) {
+      activeBudget.markSkipped();
+      return;
+    }
+    activeBudget?.countWrite();
+    await rawExecutor.exec(q);
   },
   async ddl(statement) {
     return rawExecutor.ddl(statement);

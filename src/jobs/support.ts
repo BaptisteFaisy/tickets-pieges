@@ -7,7 +7,8 @@
  */
 
 import { Queue } from '@forge/events';
-import { createSqlStore, ensureSchema } from '../platform/db';
+import { createSqlStore, ensureSchema, setBudget } from '../platform/db';
+import { SqlBudget } from '../platform/budget';
 import { createJiraPort } from '../platform/jira';
 import { forgeModelPort } from '../platform/llm';
 import type { Clock, JiraPort, ModelPort, Store } from '../platform/schema';
@@ -39,6 +40,11 @@ export async function enqueueC3(message: C3Message): Promise<void> {
  * (`docs/FORGE.md` §2).
  */
 export async function createForgeDeps(): Promise<PipelineDeps> {
+  // Le budget est branché **avant** la première requête : c'est lui qui compte
+  // les écritures et qui décide de les sauter quand le quota est proche
+  // (`docs/BUDGET-SQL.md`).
+  const budget = new SqlBudget();
+  setBudget(budget);
   await ensureSchema();
   const store: Store = createSqlStore();
   const jira: JiraPort = createJiraPort();
