@@ -3,7 +3,9 @@
  *  - `hook-config.ts` : le fichier de hooks généré pour les cinq clients,
  *    réglable et copiable (aucun réseau) ;
  *  - `hook-flows.ts` : les réponses réelles PostToolUse et PreToolUse sur des
- *    appels d'outils MCP simulés.
+ *    appels d'outils MCP simulés ;
+ *  - `hook-token.ts` : le cycle de vie du jeton (empreinte, vérifications,
+ *    rotation, 401 identique).
  *
  * Une seule exportation de section (`hookSection`) ; le découpage en fichiers
  * `hook-*.ts` suit la règle des 500 lignes du dépôt. Aucune logique métier
@@ -13,14 +15,16 @@
 import type { Section, SectionContext } from './types';
 import { mountConfig, renderConfig } from './hook-config';
 import { mountFlows, renderInbound, renderOutbound } from './hook-flows';
+import { mountToken, renderToken } from './hook-token';
 
 function render(ctx: SectionContext): string {
-  return renderConfig(ctx) + renderInbound(ctx) + renderOutbound(ctx);
+  return renderConfig(ctx) + renderInbound(ctx) + renderOutbound(ctx) + renderToken(ctx);
 }
 
 function mount(root: HTMLElement, ctx: SectionContext): void {
   mountConfig(root, ctx);
   mountFlows(root, ctx);
+  mountToken(root, ctx);
 }
 
 export const hookSection: Section = {

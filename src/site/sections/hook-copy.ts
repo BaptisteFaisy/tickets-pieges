@@ -45,6 +45,21 @@ export const L = {
   outboundRun: { fr: 'Rendre la décision', en: 'Return the decision' },
   outboundFull: { fr: 'Réponse JSON complète du hook', en: 'Full hook JSON response' },
   outboundNone: { fr: 'Aucun motif rendu : l’écriture passe sans relecture.', en: 'No reason returned: the write goes through without review.' },
+  tokenTitle: { fr: 'Cycle de vie du jeton du hook — empreinte stockée, comparaison à temps constant, rotation (§11)', en: 'Hook token lifecycle — stored fingerprint, timing-safe comparison, rotation (§11)' },
+  tokenRun: { fr: 'Rejouer le cycle (nouveaux jetons aléatoires)', en: 'Replay the cycle (new random tokens)' },
+  tokenStep: { fr: 'Étape', en: 'Step' },
+  tokenPublic: { fr: 'Réponse publique', en: 'Public response' },
+  tokenLog: { fr: 'Journal (ne sort jamais)', en: 'Log (never returned)' },
+  tokenDetail: { fr: 'Détail', en: 'Detail' },
+  tokenNote: { fr: 'Jeton absent, compte inconnu, empreinte fausse : exactement le même 401, même corps — seul le journal distingue les cas. La comparaison des empreintes est à temps constant (timingSafeEqual) : aucun délai ne révèle le premier octet juste.', en: 'Absent token, unknown account, wrong fingerprint: exactly the same 401, same body — only the log tells the cases apart. Fingerprint comparison is timing-safe: no delay reveals the first matching byte.' },
+  tokenIssued: { fr: 'Émission — le clair n’existe qu’ici, une seule fois ; la ligne stockée ne porte que l’empreinte SHA-256', en: 'Issue — the clear text exists only here, once; the stored row carries the SHA-256 fingerprint only' },
+  tokenCorrect: { fr: 'Présentation du bon jeton', en: 'Presenting the correct token' },
+  tokenWrong: { fr: 'Présentation d’un jeton faux', en: 'Presenting a wrong token' },
+  tokenAbsent: { fr: 'Aucun jeton (en-tête Authorization absent)', en: 'No token (Authorization header missing)' },
+  tokenUnknown: { fr: 'Compte inconnu de la table hook_token', en: 'Account unknown to the hook_token table' },
+  tokenRotated: { fr: 'Rotation — nouvelle empreinte, createdAt repart ; la rotation est la seule révocation', en: 'Rotation — new fingerprint, createdAt resets; rotation is the only revocation' },
+  tokenOldAfter: { fr: 'Ancien jeton présenté après rotation', en: 'Old token presented after rotation' },
+  tokenNewAfter: { fr: 'Nouveau jeton présenté après rotation', en: 'New token presented after rotation' },
 } as const;
 
 export type CopyKey = keyof typeof L;
