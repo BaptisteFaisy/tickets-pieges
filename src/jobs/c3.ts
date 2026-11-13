@@ -12,7 +12,10 @@ import { toFindings } from '../core/findings';
 import { computeSuspicion, toIssueState } from '../core/suspicion';
 import { defaultSettings } from '../core/trust-rules';
 import { contentHash, randomBlockId } from '../core/hashing';
-import type { Finding, Language, LayerHit, SegmentSource, SuspicionLevel, IssueState } from '../core/types';
+import { readableRemainder, withoutIgnoredPhrases } from '../core/ignored-phrases';
+import type {
+  Finding, IssueState, Language, LayerHit, ProjectSettings, SegmentSource, SuspicionLevel,
+} from '../core/types';
 import type { SegmentRow, Store } from '../platform/schema';
 import { writeProperty, type PipelineDeps } from './pipeline';
 
@@ -83,6 +86,21 @@ async function persistAfterC3(
     await writeProperty(deps, state, deps.settings?.language ?? 'fr');
   }
   return suspicion;
+}
+
+/**
+ * Le texte réellement soumis au modèle : les formules à ignorer du projet
+ * (§14) en sont retirées. Le modèle n'a pas de liste d'exceptions — sans ce
+ * retrait, une mention légale pleine d'impératifs (« veuillez supprimer »,
+ * « ne pas imprimer ») passait pour une consigne et faisait monter un ticket
+ * sain en `review` (mesuré en production le 13 novembre 2026, `fr-13`).
+ *
+ * `null` : il ne reste rien à juger — le passage entier est une formule
+ * ignorée, on ne dérange pas le modèle (et on n'écrit aucun constat).
+ */
+function passageToRead(text: string, settings: ProjectSettings): string | null {
+  if (readableRemainder(text, settings.ignoredPhrases).length === 0) return null;
+  return withoutIgnoredPhrases(text, settings.ignoredPhrases);
 }
 
 /** Fait lire un passage par le modèle ; `null` = modèle indisponible (§20). */
@@ -162,13 +180,21 @@ async function threadPass(
   deps: PipelineDeps,
   issueId: string,
   trigger: SegmentRow,
-  language: Language,
+  settings: ProjectSettings,
   now: string,
 ): Promise<ThreadOutcome> {
+  const language = settings.language;
   const rows = await deps.store.segments.byIssue(issueId);
-  const comments = rows.filter((row) => row.field === 'comment');
+  // Un commentaire entièrement couvert par une formule à ignorer ne fait pas
+  // partie du fil qu'on juge : signature, mention légale recopiée, etc.
+  const comments = rows
+    .filter((row) => row.field === 'comment')
+    .flatMap((row) => {
+      const text = passageToRead(row.text, settings);
+      return text === null ? [] : [{ ...row, text }];
+    });
   if (comments.length < 2) return { findings: 0, malformed: false };
-  const passage = threadPassage(rows);
+  const passage = threadPassage(comments);
   const hash = contentHash(passage);
   if (await threadAlreadyScanned(deps, issueId, hash)) return { findings: 0, malformed: false };
   const hit = await modelReading(deps, passage, language);
@@ -203,18 +229,22 @@ export async function runC3OnSegment(
     ?? defaultSettings(existing?.projectKey ?? '');
   const language = settings.language;
 
-  const hit = await modelReading(deps, row.text, language);
+  const passage = passageToRead(row.text, settings);
+  const hit = passage === null ? null : await modelReading(deps, passage, language);
   const produced = hit
     ? toFindings({ hits: [hit], segment: segmentOf(row), segmentId, language, now })
     : [];
   const single = await storeFindings(deps, produced);
-  const thread = await threadPass(deps, issueId, row, language, now);
+  const thread = await threadPass(deps, issueId, row, settings, now);
 
   const findings = single.length + thread.findings;
   const suspicion = await persistAfterC3(deps, issueId, existing, now);
   await deps.store.events.append('c3', issueId, { segmentId, findings, suspicion });
 
-  if (!hit && findings === 0) return { segmentId, findings: 0, malformed: false, reason: 'modele-indisponible' };
+  if (!hit && findings === 0) {
+    const reason = passage === null ? 'passage-ignore' : 'modele-indisponible';
+    return { segmentId, findings: 0, malformed: false, reason };
+  }
   return {
     segmentId,
     findings,

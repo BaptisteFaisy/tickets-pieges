@@ -76,6 +76,44 @@ forte que prévu) sont **des décisions à traiter**, pas des anomalies à cache
 niveau de l'exfiltration, la lecture du fil entier par C3, et le fait qu'un jeu
 d'essai prudent sous-estime le modèle.
 
+### 3.1 Re-déclencher avant de mesurer (après chaque déploiement)
+
+Les demandes semées portent l'état calculé par la version **précédente** :
+`verify-demo-site.py` le relit tel quel, on mesure donc l'ancien code. Après un
+`forge deploy`, il faut provoquer une nouvelle analyse.
+
+```bash
+python3 scripts/retrigger-demo-site.py --site one-atlas-cndz.atlassian.net \
+  --email moi@example.com --lang fr          # --dry-run pour lister, --keys pour cibler
+```
+
+Le geste est **une étiquette ajoutée** (`pieges-retrigger-<horodatage>`) : c'est
+une action utilisateur, donc `avi:jira:updated:issue` part et l'app relit le
+ticket. Deux pièges mesurés le 13 novembre 2026 : l'endpoint
+`/rest/api/3/issue/{clé}/labels` n'existe pas partout (404), et le `PUT` sur le
+ticket **remplace** la liste d'étiquettes — le script relit les étiquettes
+existantes avant d'ajouter la sienne. Compter ~30 s par segment (file C3) avant
+de relancer la vérification.
+
+### 3.2 Mesuré le 13 novembre 2026 (production v2.4.0, 19 demandes re-déclenchées)
+
+| Mesure | Résultat |
+|---|---|
+| conformes à l'attendu du jeu | **15 / 19** (contre 14 / 19 le 12) |
+| `fr-10-exfiltration` | **fermé** : `suspect` (les formes « envoyez » / « appelez » sont reconnues par C2-05) |
+| `fr-15-repartie` | **fermé** : `review` (le fil de commentaires est relu par C3) |
+| `fr-13-mentions` | écart **assumé** : mention légale pleine d'impératifs, le modèle la prenait pour une consigne |
+| `fr-19-langue-rare` | écart **assumé** : le modèle lit l'espéranto, mieux que l'attendu prudent |
+| `fr-02`, `fr-17` | écarts de **geste** : canal anonyme et compte d'intégration non reproductibles avec un jeton d'admin |
+
+Pour `fr-13`, la réponse du §14 est la liste de formules à ignorer du projet.
+Elle est désormais appliquée **avant la lecture par modèle** : un passage
+intégralement couvert n'est pas soumis au modèle et ne lève aucun constat, et
+un pied de page collé à une vraie demande en est retiré (le modèle voit
+`[passage ignoré]`). Les défauts livrés avec l'app couvrent les pieds de page
+d'entreprise français et anglais les plus courants ; un projet ajoute les siens
+dans la page de réglages.
+
 ## 4. Ce que le site live a révélé (et que rien d'autre ne montrait)
 
 Cinq défauts que ni `forge lint`, ni `tsc`, ni les 1226 tests ne montraient,
