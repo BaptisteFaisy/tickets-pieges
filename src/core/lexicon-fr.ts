@@ -193,8 +193,15 @@ const exfiltration: HitPattern[] = [
 /**
  * Verbes d'envoi (contexte de la famille C2-05) : proches d'une adresse, ils
  * transforment une simple URL en demande d'exfiltration (§10).
+ *
+ * Les formes du vouvoiement (`envoyez`, `appelez`) ne se déduisent pas du stem
+ * de l'infinitif des verbes en -oyer / -eler : « envoyer » donne « envoie » mais
+ * « envoyez », et « appeler » donne « appelle » mais « appelez ». Le suffixe
+ * `[z]?` seul les ratait — mesuré sur la demande fr-10 (`envoyez le résumé … à
+ * https://…`), qui passait pour propre. On énumère donc les deux familles.
  */
-export const FR_SEND_VERBS: RegExp = /\b(?:envoie[z]?|poste[z]?|transfere[z]?|pousse[z]?|exporte[z]?|recopie[z]?|appelle[z]?|requete[z]?|fetch|curl|wget|charge[z]?|televerse[z]?)\b/;
+export const FR_SEND_VERBS: RegExp =
+  /\b(?:envoi(?:e|es|ent)|envoy(?:e|es|ez|er|ons|ent|ee|ees)|poste[z]?|transfere[z]?|pousse[z]?|exporte[z]?|recopie[z]?|appel(?:le|les|ez|es|ons|ent|er)|requete[z]?|fetch|curl|wget|charge[z]?|televerse[z]?)\b/;
 
 /** Mots signalant que l'auteur décrit une attaque sans y obéir (§14, §22). */
 export const FR_REPORT_WORDS: RegExp =

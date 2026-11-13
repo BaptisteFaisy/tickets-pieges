@@ -11,10 +11,19 @@ import { classifyPassage } from '../core/c3-model';
 import { toFindings } from '../core/findings';
 import { computeSuspicion, toIssueState } from '../core/suspicion';
 import { defaultSettings } from '../core/trust-rules';
-import { randomBlockId } from '../core/hashing';
-import type { Finding, SegmentSource, SuspicionLevel, IssueState } from '../core/types';
+import { contentHash, randomBlockId } from '../core/hashing';
+import type { Finding, Language, LayerHit, SegmentSource, SuspicionLevel, IssueState } from '../core/types';
 import type { SegmentRow, Store } from '../platform/schema';
 import { writeProperty, type PipelineDeps } from './pipeline';
+
+/** Segment synthétique qui porte le constat du fil entier (§22). */
+const THREAD_ID_SUFFIX = 'thread';
+
+/** Événement qui note qu'un texte de fil a déjà été lu par le modèle. */
+const THREAD_SCANNED = 'c3-thread';
+
+/** Combien d'événements on relit pour savoir si ce fil a déjà été lu. */
+const THREAD_LOOKBACK = 80;
 
 /** Ce que la couche C3 produit sur un segment. */
 export interface C3Outcome {
@@ -76,10 +85,100 @@ async function persistAfterC3(
   return suspicion;
 }
 
+/** Fait lire un passage par le modèle ; `null` = modèle indisponible (§20). */
+async function modelReading(
+  deps: PipelineDeps,
+  passage: string,
+  language: Language,
+): Promise<LayerHit | null> {
+  return classifyPassage(deps.model ?? { classify: async () => '' }, passage, {
+    language,
+    blockId: randomBlockId(),
+  });
+}
+
+/** Conserve les constats absents ; rend ceux qui ont été écrits. Un rejeu ne duplique rien. */
+async function storeFindings(deps: PipelineDeps, produced: Finding[]): Promise<Finding[]> {
+  const stored: Finding[] = [];
+  for (const finding of produced) {
+    if (await deps.store.findings.byId(finding.id)) continue;
+    await deps.store.findings.put(finding);
+    stored.push(finding);
+  }
+  return stored;
+}
+
 /**
- * Fait classer un segment par le modèle, conserve le constat obtenu et met à
- * jour l'état du ticket. Un modèle indisponible ne casse rien : les couches C1
- * et C2 restent valides (§20, repli prévu).
+ * Texte du fil entier, segments étiquetés dans l'ordre (§22 : « le fil entier est
+ * réexaminé à chaque ajout »). Le modèle ne reçoit qu'un passage : le découpage
+ * reste visible pour qu'il puisse recoller une charge répartie sur plusieurs
+ * commentaires, alors qu'aucun fragment ne suffit seul.
+ */
+export function threadPassage(rows: readonly SegmentRow[]): string {
+  return rows
+    .map((row) => `[${row.refId ? `commentaire ${row.refId}` : row.field}] ${row.text}`)
+    .join('\n\n');
+}
+
+/** Ce texte de fil a-t-il déjà été lu par le modèle pour ce ticket ? */
+async function threadAlreadyScanned(
+  deps: PipelineDeps,
+  issueId: string,
+  hash: string,
+): Promise<boolean> {
+  const recent = await deps.store.events.list(issueId, THREAD_LOOKBACK);
+  return recent.some((event) => {
+    if (event.kind !== THREAD_SCANNED) return false;
+    try {
+      return (JSON.parse(event.payload) as { hash?: string }).hash === hash;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** Ce que le réexamen du fil a produit. */
+interface ThreadOutcome {
+  findings: number;
+  malformed: boolean;
+}
+
+/**
+ * Réexamine le fil quand il compte plus d'un segment. Un fil déjà lu n'est pas
+ * repassé devant le modèle (empreinte du texte), donc `scanIssue` qui met N
+ * segments en file ne déclenche qu'une lecture de fil par version du texte. Le
+ * constat porte sur un segment synthétique stable (`<issue>:thread`) : il ne se
+ * duplique pas et ne dépend pas du commentaire qui a déclenché la lecture.
+ */
+async function threadPass(
+  deps: PipelineDeps,
+  issueId: string,
+  trigger: SegmentRow,
+  language: Language,
+  now: string,
+): Promise<ThreadOutcome> {
+  const rows = await deps.store.segments.byIssue(issueId);
+  if (rows.length < 2) return { findings: 0, malformed: false };
+  const passage = threadPassage(rows);
+  const hash = contentHash(passage);
+  if (await threadAlreadyScanned(deps, issueId, hash)) return { findings: 0, malformed: false };
+  const hit = await modelReading(deps, passage, language);
+  if (!hit) return { findings: 0, malformed: false };
+  await deps.store.events.append(THREAD_SCANNED, issueId, { hash });
+  const produced = toFindings({
+    hits: [hit],
+    segment: segmentOf(trigger),
+    segmentId: `${issueId}:${THREAD_ID_SUFFIX}`,
+    language,
+    now,
+  });
+  return { findings: (await storeFindings(deps, produced)).length, malformed: hit.kind === 'model-malformed' };
+}
+
+/**
+ * Fait classer un segment par le modèle, **puis réexamine le fil entier** (§22),
+ * conserve les constats obtenus et met à jour l'état du ticket. Un modèle
+ * indisponible ne casse rien : les couches C1 et C2 restent valides (§20).
  */
 export async function runC3OnSegment(
   deps: PipelineDeps,
@@ -95,34 +194,22 @@ export async function runC3OnSegment(
     ?? defaultSettings(existing?.projectKey ?? '');
   const language = settings.language;
 
-  const hit = await classifyPassage(deps.model ?? { classify: async () => '' }, row.text, {
-    language,
-    blockId: randomBlockId(),
-  });
-  if (!hit) return { segmentId, findings: 0, malformed: false, reason: 'modele-indisponible' };
+  const hit = await modelReading(deps, row.text, language);
+  const produced = hit
+    ? toFindings({ hits: [hit], segment: segmentOf(row), segmentId, language, now })
+    : [];
+  const single = await storeFindings(deps, produced);
+  const thread = await threadPass(deps, issueId, row, language, now);
 
-  const segment = segmentOf(row);
-  const produced = toFindings({
-    hits: [hit],
-    segment,
-    segmentId,
-    language,
-    now,
-  });
-  const stored: Finding[] = [];
-  for (const finding of produced) {
-    if (await deps.store.findings.byId(finding.id)) continue;
-    await deps.store.findings.put(finding);
-    stored.push(finding);
-  }
-
+  const findings = single.length + thread.findings;
   const suspicion = await persistAfterC3(deps, issueId, existing, now);
-  await deps.store.events.append('c3', issueId, { segmentId, findings: stored.length, suspicion });
+  await deps.store.events.append('c3', issueId, { segmentId, findings, suspicion });
 
+  if (!hit && findings === 0) return { segmentId, findings: 0, malformed: false, reason: 'modele-indisponible' };
   return {
     segmentId,
-    findings: stored.length,
-    malformed: hit.kind === 'model-malformed',
+    findings,
+    malformed: hit?.kind === 'model-malformed' || thread.malformed,
   };
 }
 
