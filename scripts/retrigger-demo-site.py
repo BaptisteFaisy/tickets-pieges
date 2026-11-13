@@ -45,6 +45,9 @@ RACINE = Path(__file__).resolve().parent.parent
 TIMEOUT = 40
 PAUSE = 0.5
 
+#: Préfixe des étiquettes de re-déclenchement : elles sont retirées au suivant.
+RETRIGGER_PREFIX = "pieges-retrigger-"
+
 
 def log(message: str) -> None:
     print(message, flush=True)
@@ -97,11 +100,19 @@ def labels_of(site: str, key: str, auth: tuple[str, str]) -> list[str]:
 
 
 def retrigger_one(site: str, key: str, label: str, auth: tuple[str, str]) -> str | None:
-    """Ajoute l'étiquette (en conservant les autres) ; rend la clé si réussi."""
+    """Pose l'étiquette de re-déclenchement ; rend la clé si réussi.
+
+    Les étiquettes d'un re-déclenchement précédent sont **retirées** au passage :
+    elles s'accumulent sinon (mesuré : trois par ticket au bout de trois
+    déploiements) et le rapport de vérification s'en encombre. Comme le `PUT`
+    remplace la liste entière, la nouvelle étiquette et le nettoyage partent
+    dans la même requête — donc un seul événement, et le ticket reste propre.
+    """
     labels = labels_of(site, key, auth)
-    if label in labels:
+    kept = [old for old in labels if not old.startswith(RETRIGGER_PREFIX)]
+    if label in labels and len(kept) == len(labels):
         return key
-    code, payload = call(site, "PUT", f"/rest/api/3/issue/{key}", auth, {"fields": {"labels": labels + [label]}})
+    code, payload = call(site, "PUT", f"/rest/api/3/issue/{key}", auth, {"fields": {"labels": kept + [label]}})
     if code in (200, 204):
         return key
     log(f"  {key} -> {code} {payload}")
@@ -120,7 +131,7 @@ def main() -> int:
     options = parser.parse_args()
 
     keys = [key.strip() for key in options.keys.split(",") if key.strip()] or seeded_keys(options.lang)
-    label = options.label or f"pieges-retrigger-{int(time.time())}"
+    label = options.label or f"{RETRIGGER_PREFIX}{int(time.time())}"
     log(f"{len(keys)} demande(s) à re-déclencher — étiquette « {label} »")
     if options.dry_run:
         for key in keys:
