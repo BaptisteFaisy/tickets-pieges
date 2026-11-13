@@ -67,7 +67,7 @@ export const KNOWN_GAPS: readonly KnownGap[] = [
   },
   {
     id: 'fr-13-mentions',
-    reason: 'Aucune couche déterministe ne la touche (mesuré hors ligne : 0 constat). La mention légale est désormais retirée avant la lecture par modèle (liste de formules à ignorer, §14/§22) ; ce qui reste au modèle est la demande elle-même (« merci de mettre à jour mon adresse de facturation »), qu’il lit comme une consigne ou dont il doute — le doute profite à la protection (§6). Le produit est plus protecteur que l’attendu prudent du jeu ; on n’affaiblit pas la détection pour faire du chiffre.',
+    reason: 'Aucune couche déterministe ne la touche (mesuré hors ligne : 0 constat). La mention légale est retirée avant la lecture par modèle (liste de formules à ignorer, §14/§22) ; ce qui reste au modèle est la demande elle-même (« merci de mettre à jour mon adresse de facturation »). Le prompt a été affiné deux fois et mesuré deux fois en production — critère de cible (v2.7.0), puis deux exemples (v2.8.0) : le modèle hébergé classe toujours la demande comme une consigne, ou doute — et le doute profite à la protection (§6). Le produit est plus protecteur que l’attendu prudent du jeu ; on n’affaiblit pas la détection pour faire du chiffre.',
   },
   {
     id: 'fr-19-langue-rare',
