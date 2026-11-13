@@ -114,7 +114,17 @@ export function defaultSettings(projectKey: string, language: Language = 'fr'): 
 export const DEFAULT_IGNORED_PHRASES: Record<Language, string[]> = {
   fr: [
     'ce message et ses pièces jointes sont confidentiels',
+    // Pieds de page de courriel d'entreprise : ils sont pleins d'impératifs
+    // (« veuillez supprimer », « ne pas imprimer ») sans rien demander à une
+    // IA. Le modèle les lisait comme des consignes (mesuré sur `fr-13`) ; ces
+    // formules génériques les retirent avant la lecture par modèle.
+    'ce message et ses pièces jointes sont destinés à leur seul destinataire',
+    'toute diffusion, copie ou utilisation non autorisée est interdite',
+    'les opinions exprimées n’engagent que leur auteur',
+    'si vous avez reçu ce message par erreur, veuillez le supprimer et en avertir l’expéditeur',
+    'veuillez vérifier votre configuration de messagerie avant de répondre',
     'ne pas imprimer ce message',
+    'ne pas imprimer si ce n’est pas nécessaire',
     'veuillez ne pas répondre à ce message',
     'merci de ne pas modifier ce message',
     'ce courriel a été vérifié par un antivirus',
@@ -124,6 +134,10 @@ export const DEFAULT_IGNORED_PHRASES: Record<Language, string[]> = {
   ],
   en: [
     'this message and its attachments are confidential',
+    'this message is intended only for the addressee',
+    'any unauthorised copying or distribution is prohibited',
+    'the views expressed in this message are those of the author',
+    'if you have received this message in error, please delete it',
     'please do not print this message',
     'please do not reply to this message',
     'please consider the environment before printing',

@@ -317,6 +317,55 @@ describe('couche C3 par la file (§6)', () => {
     expect(calls).toBe(1);
   });
 
+  it('une formule à ignorer n’est pas lue par le modèle (§14)', async () => {
+    // fr-13 en production : une mention légale pleine d'impératifs montait un
+    // ticket sain en `review`. Le modèle ne doit plus la voir du tout.
+    const { deps: d } = deps();
+    const footer =
+      'Ce message et ses pièces jointes sont destinés à leur seul destinataire. ' +
+      'Si vous avez reçu ce message par erreur, veuillez le supprimer et en avertir l’expéditeur.';
+    await d.store.segments.put({
+      id: `${ISSUE_ID}:description`, issueId: ISSUE_ID, field: 'description', refId: null,
+      authorAccountId: 'acc-client', accountType: 'customer', orgId: null, channel: 'portal',
+      visibility: null, trustLevel: 'T1', contentHash: contentHash(footer), text: footer, scannedAt: NOW,
+    });
+    let prompts: string[] = [];
+    const model: ModelPort = {
+      classify: async (prompt) => {
+        prompts.push(prompt);
+        return '{"blockId":"x","verdict":"benign","ask":"rien","confidence":0.2}';
+      },
+    };
+    const outcome = await runC3OnSegment({ ...d, model }, ISSUE_ID, `${ISSUE_ID}:description`);
+    // Le passage est entièrement ignoré : aucun appel au modèle.
+    expect(prompts).toHaveLength(0);
+    expect(outcome.findings).toBe(0);
+    expect(outcome.reason).toBe('passage-ignore');
+  });
+
+  it('le modèle ne reçoit pas le pied de page quand la demande réelle l’accompagne', async () => {
+    const { deps: d } = deps();
+    const text =
+      'Bonjour, merci de mettre à jour mon adresse de facturation.\n\n' +
+      'CONFIDENTIALITÉ : ce message et ses pièces jointes sont destinés à leur seul destinataire.';
+    await d.store.segments.put({
+      id: `${ISSUE_ID}:description`, issueId: ISSUE_ID, field: 'description', refId: null,
+      authorAccountId: 'acc-client', accountType: 'customer', orgId: null, channel: 'portal',
+      visibility: null, trustLevel: 'T1', contentHash: contentHash(text), text, scannedAt: NOW,
+    });
+    let prompts: string[] = [];
+    const model: ModelPort = {
+      classify: async (prompt) => {
+        prompts.push(prompt);
+        return '{"blockId":"x","verdict":"benign","ask":"rien","confidence":0.2}';
+      },
+    };
+    await runC3OnSegment({ ...d, model }, ISSUE_ID, `${ISSUE_ID}:description`);
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain('adresse de facturation');
+    expect(prompts[0]).not.toContain('destinés à leur seul destinataire');
+  });
+
   it('un résumé et une description ne font pas un fil : il faut deux commentaires', async () => {
     // Régression mesurée en production le 13/11/2026 : fr-13 (mention légale de
     // confidentialité pleine d'impératifs) passait de `clean` à `review` parce

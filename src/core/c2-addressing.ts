@@ -29,6 +29,7 @@ import { FR_REPORT_WORDS, FR_SEND_VERBS, lexiconFr } from './lexicon-fr';
 import { IT_REPORT_WORDS, IT_SEND_VERBS, lexiconIt } from './lexicon-it';
 import { NL_REPORT_WORDS, NL_SEND_VERBS, lexiconNl } from './lexicon-nl';
 import { PT_REPORT_WORDS, PT_SEND_VERBS, lexiconPt } from './lexicon-pt';
+import { isCovered, ignoredSpans, type IgnoredSpan } from './ignored-phrases';
 import { detectLanguage } from './langues';
 import type { LexiconLanguage } from './langues';
 import type { FindingKind, Language, LayerHit } from './types';
@@ -123,42 +124,14 @@ const DATA_PARAM =
 
 // --------------------------------------------------------------------- pliage
 
-interface Folded {
-  text: string;
-  /** Pour chaque caractère plié, son index dans le texte d'origine. */
-  index: number[];
-}
+// Le pliage vit dans `fold.ts` : C2, l'auto-calibrage et les formules à ignorer
+// s'en servent tous les trois, et une seule implémentation doit exister.
+// La ré-exportation garde les appelants existants (`autotune.ts`, tests) sur
+// le même point d'entrée.
+import { foldText, originalPos, type Folded } from './fold';
 
-/** Ramène un caractère à sa forme pliée (une chaîne : `…` en rend trois). */
-function foldChar(char: string): string {
-  if (char === '\u00A0' || char === '\u202F' || char === '\u2009') return ' ';
-  if (char === '’' || char === '‘' || char === '‛') return "'";
-  if (char === '“' || char === '”') return '"';
-  if (char === '–' || char === '—' || char === '−') return '-';
-  if (char === '…') return '...';
-  if (char === 'œ') return 'oe';
-  if (char === 'æ') return 'ae';
-  return char.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
-}
-
-/** Plie le texte et garde la correspondance vers les positions d'origine. */
-export function foldText(raw: string): Folded {
-  const chars: string[] = [];
-  const index: number[] = [];
-  const source = raw.length > MAX_TEXT ? raw.slice(0, MAX_TEXT) : raw;
-  for (let i = 0; i < source.length; i += 1) {
-    for (const folded of foldChar(source.charAt(i))) {
-      chars.push(folded);
-      index.push(i);
-    }
-  }
-  return { text: chars.join(''), index };
-}
-
-/** Position d'origine d'un index plié, bornée au texte. */
-function originalPos(folded: Folded, position: number, fallback: number): number {
-  return folded.index[position] ?? fallback;
-}
+export { foldText } from './fold';
+export type { Folded } from './fold';
 
 // ------------------------------------------------------------------ candidats
 
@@ -241,33 +214,21 @@ function scanLexicon(lexicon: C2Lexicon, folded: Folded): Candidate[] {
 // ------------------------------------------------------------------- filtrage
 
 interface IgnoredRanges {
-  ranges: [number, number][];
+  spans: readonly IgnoredSpan[];
   test: C2Options['isIgnoredPhrase'];
 }
 
 /** Intervalles des formules à ignorer, dans les positions d'origine. */
-function ignoredRanges(options: C2Options, folded: Folded, raw: string): IgnoredRanges {
-  const ranges: [number, number][] = [];
-  for (const phrase of options.ignoredPhrases ?? []) {
-    const needle = foldText(String(phrase)).text.trim().replace(/\s+/g, ' ');
-    if (needle.length < 4) continue;
-    let from = folded.text.indexOf(needle);
-    while (from !== -1) {
-      ranges.push([
-        originalPos(folded, from, 0),
-        originalPos(folded, from + needle.length - 1, raw.length) + 1,
-      ]);
-      from = folded.text.indexOf(needle, from + 1);
-    }
-  }
-  return { ranges, test: options.isIgnoredPhrase };
+function ignoredRanges(options: C2Options, raw: string): IgnoredRanges {
+  // Le calcul des intervalles vit dans `ignored-phrases.ts` : la couche C3
+  // retire les mêmes passages avant de soumettre un texte au modèle.
+  const spans = ignoredSpans(raw, options.ignoredPhrases ?? []);
+  return { spans, test: options.isIgnoredPhrase };
 }
 
 /** Un candidat couvert par une formule ignorée ne lève aucun constat (§14). */
 function isIgnored(candidate: Candidate, ignored: IgnoredRanges, raw: string): boolean {
-  const covered = ignored.ranges.some(
-    ([from, to]) => candidate.startPos >= from && candidate.endPos <= to,
-  );
+  const covered = isCovered(candidate.startPos, candidate.endPos, ignored.spans);
   if (covered) return true;
   if (!ignored.test) return false;
   return ignored.test(raw.slice(candidate.startPos, candidate.endPos), candidate.startPos, candidate.endPos);
@@ -369,7 +330,7 @@ export function detectAddressing(text: string, options: C2Options = {}): LayerHi
   if (typeof text !== 'string' || text.trim().length === 0) return [];
   const raw = text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) : text;
   const folded = foldText(raw);
-  const ignored = ignoredRanges(options, folded, raw);
+  const ignored = ignoredRanges(options, raw);
   const raw_candidates = languagesOf(options, raw).flatMap((language) =>
     scanLexicon(LEXICONS[language], folded),
   );
