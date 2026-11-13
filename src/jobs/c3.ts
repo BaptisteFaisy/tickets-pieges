@@ -144,11 +144,19 @@ interface ThreadOutcome {
 }
 
 /**
- * Réexamine le fil quand il compte plus d'un segment. Un fil déjà lu n'est pas
- * repassé devant le modèle (empreinte du texte), donc `scanIssue` qui met N
- * segments en file ne déclenche qu'une lecture de fil par version du texte. Le
- * constat porte sur un segment synthétique stable (`<issue>:thread`) : il ne se
- * duplique pas et ne dépend pas du commentaire qui a déclenché la lecture.
+ * Réexamine le fil quand la charge est **répartie sur plusieurs commentaires**
+ * (§22). Un fil déjà lu n'est pas repassé devant le modèle (empreinte du
+ * texte), donc `scanIssue` qui met N segments en file ne déclenche qu'une
+ * lecture de fil par version du texte. Le constat porte sur un segment
+ * synthétique stable (`<issue>:thread`) : il ne se duplique pas et ne dépend
+ * pas du commentaire qui a déclenché la lecture.
+ *
+ * Le seuil est « deux commentaires », pas « deux segments » : un résumé et une
+ * description forment **un seul message**, les relire ensemble n'apporte rien
+ * et élargit la surface de faux positifs (mesuré en production le 13 novembre
+ * 2026 : `fr-13`, mention légale de confidentialité pleine d'impératifs, est
+ * passé de `clean` à `review` parce que le résumé était collé à la
+ * description). La charge fragmentée du §22, elle, est dans les commentaires.
  */
 async function threadPass(
   deps: PipelineDeps,
@@ -158,7 +166,8 @@ async function threadPass(
   now: string,
 ): Promise<ThreadOutcome> {
   const rows = await deps.store.segments.byIssue(issueId);
-  if (rows.length < 2) return { findings: 0, malformed: false };
+  const comments = rows.filter((row) => row.field === 'comment');
+  if (comments.length < 2) return { findings: 0, malformed: false };
   const passage = threadPassage(rows);
   const hash = contentHash(passage);
   if (await threadAlreadyScanned(deps, issueId, hash)) return { findings: 0, malformed: false };
