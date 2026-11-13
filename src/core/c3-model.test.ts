@@ -60,7 +60,12 @@ describe('prompt (§6 : aucun outil, aucune donnée)', () => {
     const long = 'a'.repeat(MAX_PASSAGE_CHARS + 500);
     const prompt = buildPrompt(long, BLOCK, 'fr');
     expect(prompt).toContain('tronqué');
-    expect(prompt.length).toBeLessThan(MAX_PASSAGE_CHARS + 2000);
+    // Le garde-fou est le **dépassement** du prompt sur le passage : la consigne
+    // tient en un nombre de caractères borné, faute de quoi elle domine le
+    // texte envoyé au modèle. Il a grandi de 200 caractères quand le prompt a
+    // reçu le critère de cible et ses deux exemples (§6) — la borne suit, elle
+    // reste un garde-fou et non une mesure figée.
+    expect(prompt.length).toBeLessThan(MAX_PASSAGE_CHARS + 2200);
   });
 
   it('existe en anglais', () => {
