@@ -29,7 +29,7 @@ concurrency:
 jobs:
   corpus:
     name: corpus (seuil de faux positifs)
-    runs-on: [self-hosted, linux, x64, tickets-pieges-worker]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +41,10 @@ jobs:
       # Runners self-hosted persistants : un sous-dossier parasite d'un run
       # précédent peut fausser la mesure. node_modules est exclu (npm ci le
       # remplace de toute façon).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
       - name: Nettoyage du workspace
         shell: bash
         run: git clean -ffdx -e node_modules
@@ -54,20 +58,6 @@ jobs:
           mkdir -p "$HOME/.cache/ci-tmp"
           echo "TMPDIR=$HOME/.cache/ci-tmp" >> "$GITHUB_ENV"
 
-      - name: Node du worker (hors PATH par défaut)
-        shell: bash
-        run: |
-          set -euo pipefail
-          NODE_BIN="$HOME/.local/node/bin"
-          if [ ! -x "$NODE_BIN/node" ]; then
-            echo "::error::Node introuvable dans $NODE_BIN (installation du worker absente)"
-            exit 1
-          fi
-          echo "$NODE_BIN" >> "$GITHUB_PATH"
-          "$NODE_BIN/node" --version
-
-      # esbuild (utilisé pour assembler le domaine) vient de node_modules :
-      # dépendances réinstallées seulement si le verrou a changé.
       - name: Dépendances (cache du runner, réinstallation si verrou changé)
         shell: bash
         run: |
