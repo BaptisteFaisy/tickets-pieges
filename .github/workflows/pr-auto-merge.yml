@@ -253,7 +253,7 @@ jobs:
     #     `couche0` ne doivent réveiller aucun balayage (c'était ~85 % des runs) ;
     #   - un run `cancelled`/`skipped` ne laisse aucun verdict à traiter.
     if: ${{ github.event_name != 'workflow_run' || (!startsWith(github.event.workflow_run.head_branch, 'mergify/merge-queue/') && !startsWith(github.event.workflow_run.head_branch, 'gh-readonly-queue/') && github.event.workflow_run.conclusion != 'cancelled' && github.event.workflow_run.conclusion != 'skipped') }}
-    runs-on: [self-hosted, linux, x64, tickets-pieges-worker]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.build.outputs.matrix }}
@@ -448,7 +448,7 @@ jobs:
       max-parallel: 8
       matrix:
         include: ${{ fromJSON(needs.discover.outputs.matrix) }}
-    runs-on: [self-hosted, linux, x64, tickets-pieges-worker]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Rebase / résout / merge la PR ${{ matrix.pr }}

@@ -26,7 +26,7 @@ concurrency:
 jobs:
   bench:
     name: bench
-    runs-on: [self-hosted, linux, x64, tickets-pieges-worker]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -46,17 +46,12 @@ jobs:
           mkdir -p "$HOME/.cache/ci-tmp"
           echo "TMPDIR=$HOME/.cache/ci-tmp" >> "$GITHUB_ENV"
 
-      - name: Node du worker (hors PATH par défaut)
-        shell: bash
-        run: |
-          set -euo pipefail
-          NODE_BIN="$HOME/.local/node/bin"
-          if [ ! -x "$NODE_BIN/node" ]; then
-            echo "::error::Node introuvable dans $NODE_BIN (installation du worker absente)"
-            exit 1
-          fi
-          echo "$NODE_BIN" >> "$GITHUB_PATH"
-          "$NODE_BIN/node" --version
+      # Node 22 comme sur `ci.yml` : le dépôt l'exige (engines.node >= 22) et
+      # le runner hébergé par GitHub ne le fournit pas par défaut.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
 
       - name: Dépendances (cache du runner, réinstallation si verrou changé)
         shell: bash
