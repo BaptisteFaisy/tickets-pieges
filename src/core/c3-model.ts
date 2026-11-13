@@ -56,6 +56,7 @@ export function buildPrompt(
   const parts = [
     t(language, 'c3.prompt.role'),
     t(language, 'c3.prompt.task'),
+    t(language, 'c3.prompt.scope'),
     t(language, 'c3.prompt.format', { blockId }),
     t(language, 'c3.prompt.block-open', { blockId }),
     body,
