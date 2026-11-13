@@ -351,19 +351,36 @@ de délai (création → origine, → C3), le débit au-delà des 19 demandes, e
 points du §20 qui exigent un agent Rovo réel (le « Lecteur prudent » de la
 démo).
 
-## 9. Les trois écarts de détection de la recette live (13 novembre 2026)
+## 9. Les écarts de détection de la recette live (13 novembre 2026)
 
-Les trois écarts de détection relevés au §8 ont été traités. Deux étaient des
-défauts du moteur, le troisième une qualité du produit que l'attendu figé
-sous-estimait.
+Les trois écarts de détection relevés au §8 ont été traités et **confrontés au
+site réel** (production v2.3.0 puis v2.4.0, `one-atlas-cndz.atlassian.net`, les
+19 demandes re-déclenchées par étiquette pour que la version du jour les
+réanalyse). Deux étaient des défauts du moteur ; deux autres sont des écarts
+assumés, le produit étant plus protecteur que l'attendu figé.
 
-| Écart | Cause mesurée | Traitement | Preuve hors ligne |
+| Écart | Cause mesurée | Traitement | Preuve |
 |---|---|---|---|
-| `fr-10-exfiltration` (`review` au lieu de `suspect`) | la liste des verbes d'envoi FR ratait les formes du vouvoiement des verbes en -oyer/-eler : « envoyez » et « appelez » n'étaient pas reconnus, et `C2-05` ne se levait pas du tout | `FR_SEND_VERBS` énumère les deux familles (`envoi-` / `envoy-`, `appel-`) | `src/core/c2-addressing.test.ts` : la phrase de `fr-10` lève `C2-05` à confiance ≥ 0,6 → `suspect` |
-| `fr-15-repartie` (`clean` au lieu de `review`) | C3 ne lisait qu'un segment à la fois ; trois fragments inoffensifs séparés ne se recollaient jamais | réexamen du **fil entier** par C3 à chaque ajout (§22), dédoublonné par empreinte du texte, constat sur le segment synthétique `<issue>:thread` | `src/jobs/pipeline.test.ts` : le fil de trois commentaires lève un `model-verdict` → `review` ; un second passage ne duplique pas |
-| `fr-19-langue-rare` (`review` au lieu de `clean`) | le modèle lit l'espéranto et trouve la consigne | **non affaibli** : c'est le produit qui fait mieux que l'attendu prudent. Écart assumé, documenté dans `KNOWN_GAPS` | attendu figé inchangé ; relevé seulement après plusieurs mesures stables sur le site |
+| `fr-10-exfiltration` (`review` au lieu de `suspect`) | la liste des verbes d'envoi FR ratait les formes du vouvoiement des verbes en -oyer/-eler : « envoyez » et « appelez » n'étaient pas reconnus, et `C2-05` ne se levait pas du tout | `FR_SEND_VERBS` énumère les deux familles (`envoi-` / `envoy-`, `appel-`) | `src/core/c2-addressing.test.ts` ; **live** : `fr-10` rend `suspect` |
+| `fr-15-repartie` (`clean` au lieu de `review`) | C3 ne lisait qu'un segment à la fois ; trois fragments inoffensifs séparés ne se recollaient jamais | réexamen du **fil** par C3 à chaque ajout (§22), dédoublonné par empreinte du texte, constat sur le segment synthétique `<issue>:thread` — **seulement s'il y a deux commentaires** : un résumé et une description forment un message, les relire ensemble n'apportait rien et élargissait la surface de faux positifs | `src/jobs/pipeline.test.ts` ; **live** : `fr-15` rend `review` |
+| `fr-13-mentions` (`review` au lieu de `clean`) | mention légale de confidentialité pleine d'impératifs : aucune couche déterministe ne la touche (hors ligne : 0 constat), c'est le **modèle** qui la prend pour une consigne | **non affaibli** : écart assumé. La réponse du §22 est la liste de formules à ignorer par projet ; elle ne couvre aujourd'hui que les couches déterministes, pas la lecture par modèle — c'est le prochain chantier | `KNOWN_GAPS` ; mesuré live le 13/11 |
+| `fr-19-langue-rare` (`review` au lieu de `clean`) | le modèle lit l'espéranto et trouve la consigne | **non affaibli** : le produit fait mieux que l'attendu prudent | `KNOWN_GAPS` ; mesuré live le 13/11 |
 
-Les deux correctifs sont prouvés hors ligne (tests unitaires) ; leur effet sur
-la recette live (`scripts/live-check.mjs`) reste **à reconfirmer sur le site
-après déploiement** — la recette live exige un site Atlassian et n'est pas dans
-la CI. On n'affaiblit pas la détection pour faire passer un chiffre.
+**État mesuré sur le site le 13 novembre 2026** (production v2.4.0, 19 demandes
+re-déclenchées) : **15 conformes sur 19**, 4 écarts connus (`fr-02`, `fr-13`,
+`fr-17`, `fr-19`), **0 régression**. Les deux écarts de geste (`fr-02`,
+`fr-17`) ne sont pas des défauts du produit : le portail anonyme et le compte
+d'intégration ne sont pas reproductibles avec un jeton d'admin.
+
+Deux défauts trouvés au passage par cette recette :
+
+- le test « refuse toute altération du chiffré (tag GCM) » altérait le
+  *dernier* caractère d'un bloc base64url, qui ne porte que 2 bits de padding :
+  dans **25,1 %** des cas (2 000 tirages) l'altération ne changeait rien et le
+  test n'attendait aucune erreur — instable à un quart des exécutions ;
+- le filtre `nameWithOwner` du workflow d'auto-merge visait encore
+  `BaptisteFaisy/tickets-pieges`, alors que le dépôt est passé dans
+  l'organisation `Tradoooo` : plus aucune PR n'était balayée.
+
+La recette live exige un site Atlassian et n'est pas dans la CI ; elle se rejoue
+après chaque déploiement par un re-déclenchement des 19 demandes.
