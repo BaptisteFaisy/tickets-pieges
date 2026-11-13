@@ -67,7 +67,7 @@ export const KNOWN_GAPS: readonly KnownGap[] = [
   },
   {
     id: 'fr-13-mentions',
-    reason: 'Mention légale de confidentialité pleine d’impératifs : aucune couche déterministe ne la touche (mesuré hors ligne : 0 constat), c’est le modèle qui la prend pour une consigne — le produit est plus protecteur que l’attendu prudent du jeu. La réponse du §22 est la liste de formules à ignorer par projet ; elle ne couvre aujourd’hui que les couches déterministes (C2), pas la lecture par modèle.',
+    reason: 'Aucune couche déterministe ne la touche (mesuré hors ligne : 0 constat). La mention légale est désormais retirée avant la lecture par modèle (liste de formules à ignorer, §14/§22) ; ce qui reste au modèle est la demande elle-même (« merci de mettre à jour mon adresse de facturation »), qu’il lit comme une consigne ou dont il doute — le doute profite à la protection (§6). Le produit est plus protecteur que l’attendu prudent du jeu ; on n’affaiblit pas la détection pour faire du chiffre.',
   },
   {
     id: 'fr-19-langue-rare',
