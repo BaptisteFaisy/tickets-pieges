@@ -114,12 +114,15 @@ un pied de page collé à une vraie demande en est retiré (le modèle voit
 d'entreprise français et anglais les plus courants ; un projet ajoute les siens
 dans la page de réglages.
 
-**Mesuré le 13 novembre 2026 (production v2.6.0) : `fr-13` reste `review`.**
+**Mesuré deux fois (production v2.7.0 puis v2.8.0) : `fr-13` reste `review`.**
 Le pied de page n'est plus lu, mais le modèle doute sur ce qui reste : « merci
 de mettre à jour mon adresse de facturation » lui ressemble à une consigne, ou il
-répond « uncertain » — et le doute profite à la protection (§6). L'écart
-reste donc **assumé**, comme `fr-19`. Ce n'est pas un défaut de la liste
-d'exceptions : c'est la prudence du modèle sur une demande légitime.
+répond « uncertain » — et le doute profite à la protection (§6). Deux affinage
+du prompt ont été tentés et mesurés : le critère de cible (v2.7.0) puis deux
+exemples (v2.8.0). Aucun ne change le verdict du modèle hébergé ; aucun ne
+casse `fr-11` ni `fr-19`. L'écart reste donc **assumé**, comme `fr-19` : ce
+n'est pas un défaut de la liste d'exceptions, c'est la prudence du modèle sur une
+demande légitime — et on n'affaiblit pas la détection pour faire du chiffre.
 
 ## 4. Ce que le site live a révélé (et que rien d'autre ne montrait)
 
