@@ -316,6 +316,25 @@ describe('couche C3 par la file (§6)', () => {
     await runC3OnSegment({ ...d, model }, ISSUE_ID, `${ISSUE_ID}:description`);
     expect(calls).toBe(1);
   });
+
+  it('un résumé et une description ne font pas un fil : il faut deux commentaires', async () => {
+    // Régression mesurée en production le 13/11/2026 : fr-13 (mention légale de
+    // confidentialité pleine d'impératifs) passait de `clean` à `review` parce
+    // que le résumé était collé à la description. Un seul message = un segment.
+    const { deps: d } = deps();
+    const put = (id: string, field: SegmentRow['field'], text: string) =>
+      d.store.segments.put({
+        id, issueId: ISSUE_ID, field, refId: null,
+        authorAccountId: 'acc-client', accountType: 'customer', orgId: null, channel: 'portal',
+        visibility: null, trustLevel: 'T1', contentHash: contentHash(text), text, scannedAt: NOW,
+      });
+    await put(`${ISSUE_ID}:summary`, 'summary', 'Changement d’adresse de facturation');
+    await put(`${ISSUE_ID}:description`, 'description', 'Merci de mettre à jour mon adresse de facturation.');
+    const model: ModelPort = { classify: async () => '{"blockId":"x","verdict":"instruction","ask":"x","confidence":0.9}' };
+    await runC3OnSegment({ ...d, model }, ISSUE_ID, `${ISSUE_ID}:description`);
+    const thread = (await d.store.findings.byIssue(ISSUE_ID)).filter((f) => f.segmentId === `${ISSUE_ID}:thread`);
+    expect(thread).toHaveLength(0);
+  });
 });
 
 describe('lecture des événements (payloads AVI)', () => {
