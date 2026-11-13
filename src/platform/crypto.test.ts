@@ -53,8 +53,13 @@ describe('rejets', () => {
 
   it('refuse toute altération du chiffré (tag GCM)', () => {
     const ciphertext = encryptSecret('contenu', KEY);
-    const last = ciphertext.length - 1;
-    const tampered = ciphertext.slice(0, last) + (ciphertext[last] === 'a' ? 'b' : 'a');
+    // Le dernier caractère de l'enveloppe base64url ne porte que 2 bits de
+    // padding : l'altérer peut laisser les octets inchangés (mesuré ~25 % des
+    // cas) et rendre le test muet. On altère le premier caractère du tag,
+    // toujours significatif, donc la falsification est réelle à chaque fois.
+    const [version, iv, tag, body] = ciphertext.split('.');
+    const flipped = tag![0] === 'a' ? 'b' : 'a';
+    const tampered = [version, iv, flipped + tag!.slice(1), body].join('.');
     expect(() => decryptSecret(tampered, KEY)).toThrow();
   });
 
