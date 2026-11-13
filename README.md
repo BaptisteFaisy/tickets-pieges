@@ -5,7 +5,7 @@
 > whatever an AI is about to send back out goes through a gate.
 
 > **Live demo, no install, no account, nothing leaves your browser:**
-> <https://baptistefaisy.github.io/tickets-pieges/> — the app's own code, compiled for
+> <https://tradoooo.github.io/tickets-pieges/> — the app's own code, compiled for
 > the browser, in **12 interactive sections**: detector (38 built-in sample requests or
 > your own text), what the text hides (decoding, languages, homoglyphs, PDF/OOXML
 > extraction), tainted session (signed token, TTL, gesture budget, quarantine),

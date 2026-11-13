@@ -1,0 +1,76 @@
+name: corpus (seuil de faux positifs)
+
+# Corpus légitime (`data/corpus/legitimate-*.json`) : le taux de faux positifs
+# mesuré par `src/bench/legitimate.ts` est comparé au seuil du lot 7. La porte
+# `tools/check-fp-threshold.mjs` échoue (code de sortie non nul, message
+# chiffré) quand le seuil est dépassé : un texte de support ordinaire ne doit
+# jamais être relevé, et aucun motif C2 ne doit tomber sur un billet de
+# support. Le corpus « piège » (mentions légales, documentation qui cite une
+# consigne, code qui parle d'injection) tolère un bruit plafonné.
+#
+# La porte tourne à chaque PR et chaque nuit (le seuil peut dériver quand les
+# règles changent : c'est le contrôle nocturne qui le voit).
+#
+# Budget : règle user, 5 minutes maximum par job. Aucun réseau applicatif :
+# esbuild assemble le domaine en local, aucune donnée ne quitte le runner.
+on:
+  pull_request:
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corpus-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  corpus:
+    name: corpus (seuil de faux positifs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          clean: false
+
+      # Runners self-hosted persistants : un sous-dossier parasite d'un run
+      # précédent peut fausser la mesure. node_modules est exclu (npm ci le
+      # remplace de toute façon).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Nettoyage du workspace
+        shell: bash
+        run: git clean -ffdx -e node_modules
+
+      # Le /tmp des runners est un tmpfs saturable : les temporaires partent
+      # sur le disque, dans le home du runner.
+      - name: Temporaires sur le disque (jamais dans le tmpfs /tmp)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cache/ci-tmp"
+          echo "TMPDIR=$HOME/.cache/ci-tmp" >> "$GITHUB_ENV"
+
+      - name: Dépendances (cache du runner, réinstallation si verrou changé)
+        shell: bash
+        run: |
+          set -euo pipefail
+          HASH="$(sha256sum package-lock.json | cut -d' ' -f1)"
+          STAMP="node_modules/.ci-lock-hash"
+          if [ -d node_modules ] && [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$HASH" ]; then
+            echo "cache node_modules à jour ($HASH) — pas de réinstallation"
+          else
+            npm ci --prefer-offline --no-audit --no-fund
+            printf '%s' "$HASH" > "$STAMP"
+          fi
+
+      - name: Porte du taux de faux positifs (corpus légitime)
+        shell: bash
+        run: node tools/check-fp-threshold.mjs

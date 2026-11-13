@@ -100,7 +100,7 @@ jeu d'essai et le site :
 
 ## 5. Le déroulé d'une démonstration (sans vidéo)
 
-1. Ouvrir <https://baptistefaisy.github.io/tickets-pieges/> — le code du
+1. Ouvrir <https://tradoooo.github.io/tickets-pieges/> — le code du
    produit, hors ligne, douze sections.
 2. Ouvrir `https://one-atlas-cndz.atlassian.net/jira/software/projects/SECOPS/boards` —
    les **19 demandes du jeu**, semées pour de vrai.
