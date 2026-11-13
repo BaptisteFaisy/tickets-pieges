@@ -114,6 +114,13 @@ un pied de page collé à une vraie demande en est retiré (le modèle voit
 d'entreprise français et anglais les plus courants ; un projet ajoute les siens
 dans la page de réglages.
 
+**Mesuré le 13 novembre 2026 (production v2.6.0) : `fr-13` reste `review`.**
+Le pied de page n'est plus lu, mais le modèle doute sur ce qui reste : « merci
+de mettre à jour mon adresse de facturation » lui ressemble à une consigne, ou il
+répond « uncertain » — et le doute profite à la protection (§6). L'écart
+reste donc **assumé**, comme `fr-19`. Ce n'est pas un défaut de la liste
+d'exceptions : c'est la prudence du modèle sur une demande légitime.
+
 ## 4. Ce que le site live a révélé (et que rien d'autre ne montrait)
 
 Cinq défauts que ni `forge lint`, ni `tsc`, ni les 1226 tests ne montraient,
